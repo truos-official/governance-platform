@@ -1,0 +1,102 @@
+version: "3.9"
+
+# Local dev stack — AI Governance Platform
+# Production target: Azure Container Apps environment (aigov-cae, eastus)
+#
+# Secrets: use .env file locally (never commit). In ACA, use Key Vault references.
+# Copy .env.example -> .env and fill in values.
+
+services:
+
+  # --------------------------------------------------------------------------
+  # FastAPI backend — Python 3.11
+  # Auth: Azure Entra ID Bearer token (governance.read / governance.admin scopes)
+  # --------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # Azure
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-4db4e22f-83ed-4093-8d8a-c73b1e559459}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+      AZURE_KEY_VAULT_URL: ${AZURE_KEY_VAULT_URL:-https://aigov-kv.vault.azure.net/}
+      # Database — aigov-db (PostgreSQL 16, East US 2)
+      DATABASE_URL: ${DATABASE_URL}
+      # LLM — aigov-gpt41 (gpt-4.1) — do NOT use gpt-4o
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      AZURE_OPENAI_DEPLOYMENT: aigov-gpt41
+      AZURE_OPENAI_MINI_DEPLOYMENT: aigov-gpt41-mini
+      # Search — aigov-search (Central US, Basic)
+      AZURE_SEARCH_ENDPOINT: ${AZURE_SEARCH_ENDPOINT}
+      AZURE_SEARCH_KEY: ${AZURE_SEARCH_KEY}
+      # Graph — aigov-graphdb-vm (172.210.64.73:7200)
+      GRAPHDB_ENDPOINT: ${GRAPHDB_ENDPOINT:-http://172.210.64.73:7200}
+      GRAPHDB_REPOSITORY: governance
+      # Queue — aigov-bus (Service Bus Basic) [TO PROVISION]
+      SERVICE_BUS_CONNECTION_STRING: ${SERVICE_BUS_CONNECTION_STRING}
+      # OTEL export
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: governance-backend
+      OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=development"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - otel-collector
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # --------------------------------------------------------------------------
+  # OpenTelemetry Collector
+  # Receives OTEL from connected apps (gRPC :4317, HTTP :4318).
+  # Filters: only forwards metrics where deployment.environment == "production".
+  # --------------------------------------------------------------------------
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.101.0
+    command: ["--config", "/etc/otel/config.yaml"]
+    volumes:
+      - ./otel-collector/otel-config.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC — connected apps send metrics here
+      - "4318:4318"   # OTLP HTTP
+      - "8888:8888"   # Collector Prometheus metrics (self-monitoring)
+      - "13133:13133" # Health check
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:13133"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # --------------------------------------------------------------------------
+  # Governance Event Collector
+  # Processes governance.* OTEL events (Group 8, Section 10).
+  # Publishes to aigov-bus Service Bus queue: governance-events.
+  # Triggers tier recalculation on governance.risk.event.
+  # Phase 4.2 implementation.
+  # --------------------------------------------------------------------------
+  governance-event-collector:
+    build:
+      context: ./governance-event-collector
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      BACKEND_URL: http://backend:8000
+      OTEL_ENDPOINT: http://otel-collector:4317
+      SERVICE_BUS_CONNECTION_STRING: ${SERVICE_BUS_CONNECTION_STRING}
+      SERVICE_BUS_QUEUE: governance-events
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-4db4e22f-83ed-4093-8d8a-c73b1e559459}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+    depends_on:
+      - backend
+      - otel-collector
+    restart: unless-stopped

@@ -1,0 +1,22 @@
+{
+  "name": "governance-platform-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "axios": "^1.7.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.0",
+    "eslint": "^9.2.0",
+    "eslint-plugin-react": "^7.34.1",
+    "vite": "^5.2.11"
+  }
+}

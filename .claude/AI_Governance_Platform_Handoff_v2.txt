@@ -1,0 +1,580 @@
+================================================================================
+AI GOVERNANCE PLATFORM — COMPLETE SESSION HANDOFF v2
+Architecture Locked | April 1, 2026 | Phase 1 Partially Complete
+================================================================================
+
+HOW TO USE THIS DOCUMENT
+-------------------------
+Paste this file into a new chat and say:
+"Continue building the AI Governance Platform.
+Architecture is locked — do not redesign, only build."
+
+Conversation style: short dialog, one topic at a time, propose/react/refine.
+No long bullet dumps unless requested. Challenge assumptions.
+Ask one focused question to advance.
+
+================================================================================
+SECTION 1 — WHO I AM
+================================================================================
+
+Name:    Tristan Gitman
+Role:    AI Governance Architect
+Email:   tristan.gitman@un.org
+GitHub:  truos-official
+Azure:   info@truos.io
+
+================================================================================
+SECTION 2 — EXISTING DEPLOYED PROJECT (DO NOT TOUCH)
+================================================================================
+
+Name:      Agentic AI Responsible AI Demo
+GitHub:    https://github.com/truos-official/governance-demo-agentic
+Frontend:  https://ai.truos.io
+Backend:   https://governance-backend.greenbay-a269b9fb.eastus.azurecontainerapps.io
+Local:     C:\Users\trist\OneDrive\Desktop\agentic-application
+
+Stack:
+  React frontend (lucide-react@0.383.0, Recharts, SheetJS, Axios)
+  FastAPI backend (Python 3.11, Uvicorn)
+  GPT-4o-mini fine-tuned (ft:gpt-4o-mini-2024-07-18:truos::DHxtzUS8)
+  Elasticsearch hybrid RAG (2,059 chunks, BM25 + kNN)
+  Azure Cache for Redis (governance-redis.redis.cache.windows.net, port 6380, SSL)
+  Azure Language Services (PII detection, eastus)
+  Azure Container Apps (governance-backend, 0.5 vCPU, 1Gi RAM)
+  Azure Static Web Apps (governance-frontend)
+  Azure Key Vault (gov-demo-kv-truos, 12 secrets)
+  Azure Container Registry (governancedemoacr.azurecr.io)
+  Azure SWA Auth (Microsoft AAD)
+  Azure Foundry for telemetry
+  GitHub Actions CI/CD (.github/workflows/ci.yml)
+  Custom domain: ai.truos.io (Squarespace CNAME → Azure SWA)
+
+Azure subscription: a022ff24-58dd-48b0-a8b5-0791dbdb06e6
+Resource group:     rg-governance-demo (eastus)
+Container image:    governancedemoacr.azurecr.io/governance-backend:v5
+
+All secrets in Key Vault — never paste raw secrets in prompts.
+
+Status: Fully deployed and working. Do not modify this project.
+
+================================================================================
+SECTION 3 — NEW PLATFORM: CURRENT AZURE STATE (aigov-rg)
+================================================================================
+
+Subscription:   TRUOS Azure Subscription
+                ID: a022ff24-58dd-48b0-a8b5-0791dbdb06e6
+Resource Group: aigov-rg (eastus)
+Tenant:         4db4e22f-83ed-4093-8d8a-c73b1e559459
+Tags:           environment=dev, owner=info@truos.io, project=aigov-platform
+
+--- PROVISIONED AND READY ---
+
+[1.2] Azure Key Vault — aigov-kv (eastus, Standard SKU) ✓
+  Status: Succeeded
+  Secrets stored (6):
+    aigov-client-id
+    aigov-client-secret
+    aigov-graphdb-vm-password
+    aigov-graphdb-vm-username
+    aigov-openai-key
+    aigov-tenant-id
+  MISSING SECRETS (still to add):
+    postgres connection string, Redis connection string,
+    Service Bus connection string, AI Search admin key,
+    GraphDB credentials
+
+[1.3] Azure PostgreSQL Flexible Server — aigov-db (East US 2) ✓
+  SKU: Standard_B2s (Burstable) — matches spec
+  Version: PostgreSQL 16
+  State: Ready
+  Databases: only defaults exist (postgres, azure_maintenance, azure_sys)
+  NEXT: Create aigov database, enable pgvector + TimescaleDB extensions,
+        run Phase 2 schema migrations
+
+[1.4] GraphDB VM — aigov-graphdb-vm (eastus) ✓ (DEALLOCATED)
+  VM Size: Standard_D2s_v3 (NOTE: spec said B2s — D2s_v3 is an upgrade, OK)
+  OS: Linux
+  Public IP: 172.210.64.73 (Static)
+  NSG: SSH only (port 22) open — port 7200 (GraphDB) NOT open to app layer
+  Status: DEALLOCATED (auto-shutdown at 23:00 UTC enabled)
+  NEXT: Start VM, verify GraphDB Free is installed and running on port 7200,
+        open NSG port 7200 scoped to Container Apps subnet (not public),
+        load RDF ontology from Phase 2 design
+
+[1.5] Azure AI Search — aigov-search (Central US, Basic SKU) ✓
+  Status: Running
+  Replicas: 1, Partitions: 1
+  Indexes: EMPTY — no indexes defined yet
+  NEXT: Define index schema for controls + requirements (Phase 2.5),
+        seed 59 controls + 140 requirements (Phase 2.10–2.13)
+
+[1.6] Azure OpenAI / AI Services — aigov-openai-dev (eastus, S0) ✓
+  Kind: AIServices (includes OpenAI + Foundry)
+  Foundry Project: aigov-foundry-project (under same account)
+  Model Deployments:
+    aigov-gpt41       → gpt-4.1 (version 2025-04-14), 150K TPM capacity ✓
+    aigov-gpt41-mini  → gpt-4.1-mini (version 2025-04-14), 250K TPM capacity ✓
+  NOTE: Spec said GPT-4o — environment has GPT-4.1 and GPT-4.1-mini instead.
+        GPT-4.1 is newer and more capable; treat as drop-in replacement for GPT-4o.
+        Update all references from gpt-4o to gpt-4.1 in code.
+
+--- NOT YET PROVISIONED ---
+
+[1.7] Azure Cache for Redis — NOT PROVISIONED
+  Blocked on: nothing — provision next
+  Spec: Basic SKU (cost target)
+
+[1.8] Azure Service Bus — NOT PROVISIONED
+  Blocked on: nothing — provision next
+  Spec: Basic tier
+
+[1.9] Azure Container Apps Environment — NOT PROVISIONED
+  Blocked on: Redis + Service Bus (recommended before CAE)
+  Will host: FastAPI backend, OTEL Collector, Governance Event Collector
+
+[1.1] Entra ID App Registration — STATUS UNKNOWN
+  aigov-client-id and aigov-client-secret are in Key Vault
+  Need to verify app registration exists in tenant 4db4e22f...
+  and that API permissions + scopes are configured
+
+[1.10] GitHub Actions CI/CD — NOT CONFIGURED
+  Local repo: C:\Projects\aigov-platform (empty, no git init yet)
+  GitHub repo: not yet created
+  NEXT: git init, create governance-platform repo on truos-official,
+        scaffold project structure, set up CI/CD
+
+--- LOCAL ENVIRONMENT ---
+
+Working directory: C:\Projects\aigov-platform
+Git: NOT initialized
+Contents: empty (only .claude/ config folder)
+
+================================================================================
+SECTION 4 — PHASE 1 COMPLETION STATUS
+================================================================================
+
+Task    Description                                          Status
+------  ---------------------------------------------------  --------
+1.1     Provision Azure resource group + Entra ID            PARTIAL
+        (RG exists, Entra app reg unverified)
+1.2     Deploy Azure Key Vault                               DONE ✓
+        (6 secrets stored, more needed)
+1.3     Provision Azure PostgreSQL Flexible Server           DONE ✓
+        (no schema yet)
+1.4     Provision GraphDB VM                                 DONE ✓
+        (VM deallocated, GraphDB install unverified)
+1.5     Provision Azure AI Search Basic                      DONE ✓
+        (no indexes yet)
+1.6     Provision Azure OpenAI GPT-4o                       DONE ✓
+        (GPT-4.1 + GPT-4.1-mini instead of GPT-4o)
+1.7     Provision Azure Cache for Redis Basic                TODO ✗
+1.8     Provision Azure Service Bus Basic                    TODO ✗
+1.9     Configure Azure Container Apps environment           TODO ✗
+1.10    Set up GitHub Actions CI/CD                         TODO ✗
+1.11    Verify all services reachable + auth end-to-end      TODO ✗
+
+Phase 1 Gate: All services reachable, auth working end-to-end
+Gate status: NOT MET — Redis, Service Bus, CAE, CI/CD missing
+
+================================================================================
+SECTION 5 — IMMEDIATE NEXT STEPS (ORDERED)
+================================================================================
+
+STEP A — Provision Redis (30 min)
+  az redis create --name aigov-redis --resource-group aigov-rg \
+    --location eastus --sku Basic --vm-size c0
+  Store connection string in aigov-kv as aigov-redis-connection-string
+
+STEP B — Provision Service Bus (15 min)
+  az servicebus namespace create --name aigov-bus \
+    --resource-group aigov-rg --location eastus --sku Basic
+  Create queue: governance-events
+  Store connection string in aigov-kv as aigov-servicebus-connection-string
+
+STEP C — Provision Container Apps Environment (20 min)
+  az containerapp env create --name aigov-cae \
+    --resource-group aigov-rg --location eastus
+  (No apps deployed yet — just the environment)
+
+STEP D — Verify Entra ID App Registration
+  Check tenant 4db4e22f for app with client ID from aigov-kv
+  Verify API scopes: governance.read, governance.admin
+  Verify redirect URIs set for Container Apps + localhost dev
+
+STEP E — Initialize local repo + scaffold structure
+  git init C:\Projects\aigov-platform
+  Create GitHub repo: truos-official/governance-platform
+  Scaffold folder structure (see Section 6)
+  Set up GitHub Actions CI/CD pipeline
+
+STEP F — Start GraphDB VM and verify install
+  az vm start --name aigov-graphdb-vm --resource-group aigov-rg
+  SSH to 172.210.64.73, verify GraphDB running on :7200
+  Open NSG port 7200 scoped to Container Apps subnet
+  Store connection URL in aigov-kv as aigov-graphdb-url
+
+STEP G — Add remaining Key Vault secrets
+  aigov-postgres-connection-string
+  aigov-redis-connection-string
+  aigov-servicebus-connection-string
+  aigov-search-key
+  aigov-graphdb-url
+  aigov-graphdb-credentials (if auth enabled)
+
+STEP H — Phase 1.11 verification sweep
+  Test connectivity: PostgreSQL, GraphDB, AI Search, OpenAI, Redis, Service Bus
+  Test Entra auth token flow end-to-end
+
+Once Phase 1.11 gate passes → begin Phase 2 (Data Layer)
+
+================================================================================
+SECTION 6 — RECOMMENDED REPO SCAFFOLD
+================================================================================
+
+governance-platform/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── backend/
+│   ├── adapters/
+│   │   ├── search/          # AzureAISearchAdapter
+│   │   ├── llm/             # AzureOpenAIAdapter (gpt-4.1)
+│   │   ├── graph/           # GraphDBAdapter (SPARQL)
+│   │   ├── queue/           # ServiceBusAdapter
+│   │   └── telemetry/       # Azure AI Foundry, Monitor, etc.
+│   ├── api/
+│   │   ├── catalog.py       # Phase 3
+│   │   ├── compliance.py    # Phase 4
+│   │   ├── applications.py  # Phase 4
+│   │   └── telemetry.py     # Phase 4
+│   ├── core/
+│   │   ├── tier_engine.py   # Phase 4
+│   │   ├── alignment.py     # Phase 4
+│   │   └── kpi_calculator.py# Phase 4
+│   ├── db/
+│   │   ├── migrations/      # Alembic migrations (Phase 2)
+│   │   └── models.py
+│   ├── mcp/
+│   │   └── server.py        # 11 MCP tools (Phase 3)
+│   ├── main.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   └── App.jsx
+│   └── package.json
+├── otel-collector/
+│   ├── collector.py         # Phase 4
+│   └── Dockerfile
+├── governance-event-collector/
+│   ├── collector.py         # Phase 4
+│   └── Dockerfile
+├── infra/
+│   ├── terraform/           # Optional — Terraform for reproducible infra
+│   └── scripts/
+│       └── seed_catalog.py  # Phase 2.10–2.13
+├── data/
+│   └── UN_AI_Governance_Dataset_v2.xlsx  # Source dataset
+├── docker-compose.yml       # Local dev
+└── README.md
+
+================================================================================
+SECTION 7 — ARCHITECTURE DECISIONS (ALL LOCKED)
+================================================================================
+
+[Full architecture is unchanged from original handoff — key decisions below]
+
+Namespace decision: Use generic governance.* namespace (not un.governance.*)
+  OTEL resource attributes: governance.application_id, governance.division
+  Schema IDs: https://governance.{yourdomain}.com/schemas/...
+
+Model: All references to gpt-4o → use gpt-4.1 (deployment: aigov-gpt41)
+       All references to Phi-3-mini remain as Phase 7 only (fine-tuning)
+       GPT-4.1-mini (deployment: aigov-gpt41-mini) for cost-sensitive paths
+         e.g. obligation extraction, classification, novelty scoring
+
+Vendor abstraction: Adapter ABC pattern throughout.
+                    Locations: adapters/{search|llm|graph|queue|telemetry}/
+
+Graph database:     GraphDB Free on aigov-graphdb-vm (172.210.64.73)
+                    RDF / SPARQL / RDF-star (provenance on all relationships)
+
+Relational:         aigov-db (PostgreSQL 16, East US 2, Standard_B2s)
+                    + pgvector extension + TimescaleDB (metric_reading hypertable)
+
+Search:             aigov-search (Azure AI Search Basic, Central US)
+                    Hybrid BM25 + vector + semantic ranker
+
+LLM:                aigov-openai-dev → aigov-gpt41 (gpt-4.1, 150K TPM)
+                    Azure AI Foundry project: aigov-foundry-project
+
+Observability:      Azure AI Foundry (NOT LangSmith)
+
+Cache + queue:      aigov-redis (Basic) + aigov-bus (Service Bus Basic) [TO PROVISION]
+
+Telemetry ingest:   OpenTelemetry — universal contract for all connected apps
+
+API:                FastAPI (Python 3.11)
+
+Frontend:           React (no TypeScript, CSS variables, inline styles)
+
+Auth:               Azure Entra ID, Managed Identities, client credentials flow
+
+Containers:         Docker Compose locally → Azure Container Apps (aigov-cae) [TO PROVISION]
+
+Cost target:        $200-350/month on personal Azure account
+
+Pull model:         KPI calculated on-demand when dashboard loads — not pre-scheduled
+
+================================================================================
+SECTION 8 — FULL PLATFORM OVERVIEW
+================================================================================
+
+[Unchanged from original handoff — reproduced for completeness]
+
+THREE PRODUCTS:
+
+Product 1 — Regulatory Intelligence
+  Manages regulatory catalog, requirements, controls, taxonomy
+  Distributed expert network validates interpretations
+  MCP server (11 tools) exposes catalog for discovery and search
+  Automated feeds: Federal Register (daily), Congress.gov (weekly)
+  Search-first ingestion UI — human confirms every step
+  3-layer interpretation versioning (Source / System / User)
+  139 requirements pre-seeded, 59 controls pre-seeded
+
+Product 2 — Governance Monitoring
+  Connected AI apps emit metrics via OpenTelemetry (28 mandatory metrics)
+  Platform ingests and calculates compliance evidence automatically
+  Governance dashboard: regulation → requirement → control → live KPI
+  Risk tier engine (NIST scoring + domain floor rule)
+  Alignment score engine (peer 50% / reg density 30% / trend velocity 20%)
+  Peer benchmarking (same risk tier, N>=3 minimum)
+  Pull model: calculated on-demand when dashboard loads
+
+Product 3 — Native RAG Application
+  Clean enterprise build (NOT migrated from existing demo)
+  RAGs against Product 1 catalog only
+  Registers with platform on deploy — triggers live tier score
+  Live governed reference implementation
+
+BINDING CONTRACT:
+  KPI definition schema links Product 1 and Product 2
+  Product 1 defines what to measure — Product 2 measures it live
+
+KEY PRINCIPLE — TELEMETRY:
+  AI applications are instrumented, not aware.
+  Connected apps do not know they are being governed.
+  They emit standard OTEL as a side effect of normal operation.
+
+================================================================================
+SECTION 9 — DATA MODEL (UNCHANGED)
+================================================================================
+
+PostgreSQL owns content (what things are):
+  regulation, requirement, control, application,
+  metric_reading (TimescaleDB hypertable — partitioned by collected_at),
+  user, division, role_assignment,
+  taxonomy_term, risk_definition, canonical_risk_concept,
+  risk_interpretation, interpretation_divergence_signal,
+  control_metric_definition, metric_source, calculated_metric,
+  control_calculation_proposal, control_tags,
+  curation_queue_item, tier_change_event (immutable),
+  tier_peer_aggregate (materialised, refreshed on demand)
+
+GraphDB owns relationships (how things connect):
+  Nodes: Regulation, Requirement, Control, Application, TaxonomyTerm
+  Relationships (all carry RDF-star provenance metadata):
+    IMPLIES, OVERLAPS, SUPERSEDES, CONFLICTS_WITH
+    HAS_REQUIREMENT, SATISFIED_BY, PARTIALLY_SATISFIED_BY
+    DEPENDS_ON, ADOPTS, SCOPED_TO
+    EQUIVALENT_TO, SUBTYPE_OF, MAPS_TO
+  RDF-star metadata: effective_from, effective_to, confidence_score,
+                     asserted_by, reviewed_by, version
+
+Azure AI Search owns discovery:
+  Full-text + semantic + vector search across entire catalog
+  Faceted results by domain, tier, jurisdiction, category, AI system type
+  LTR reranking based on selection history (scikit-learn)
+
+TimescaleDB (inside PostgreSQL):
+  metric_reading hypertable partitioned by collected_at
+
+================================================================================
+SECTION 10 — OTEL METRIC CONTRACT (28 metrics, 8 groups)
+================================================================================
+
+All keys prefixed: ai.{group}.{metric}
+Every metric must carry resource attributes:
+  service.name           = application_id (UUID from registration)
+  service.version        = semver or commit SHA
+  deployment.environment = production | staging | development
+  governance.application_id = same as service.name
+  governance.division    = org division/department name
+
+GOVERNANCE ONLY INGESTS production ENVIRONMENT METRICS.
+
+GROUP 1: Core (all application types, mandatory)
+  ai.model.error_rate, ai.model.latency_p95, ai.logs.coverage_rate,
+  ai.logs.retention_days, ai.transparency.disclosure_rate,
+  ai.monitoring.coverage, ai.access.mfa_coverage, ai.access.failed_auth_rate
+
+GROUP 2: LLM quality
+  ai.model.accuracy, ai.model.hallucination_rate, ai.model.drift_score,
+  ai.explain.coverage_rate
+
+GROUP 3: Fairness
+  ai.fairness.demographic_parity, ai.fairness.equal_opportunity
+
+GROUP 4: Human oversight
+  ai.oversight.override_rate, ai.oversight.review_rate
+
+GROUP 5: Appeals
+  ai.appeals.rate, ai.appeals.resolution_time
+
+GROUP 6: Security
+  ai.security.vuln_open_critical, ai.data.encryption_coverage,
+  ai.data.dlp_incident_rate
+
+GROUP 7: Privacy
+  ai.privacy.dsr_response_time, ai.privacy.consent_rate
+
+GROUP 8: Governance events (custom OTEL events)
+  governance.oversight.override, governance.appeal.submitted,
+  governance.appeal.resolved, governance.fairness.test_result,
+  governance.risk.event
+
+================================================================================
+SECTION 11 — TAXONOMY (59 CONTROLS / 13 DOMAINS)
+================================================================================
+
+[Full taxonomy unchanged — see original handoff Section 10]
+
+FOUNDATION controls (auto-applied to every application):
+  RM-0, RM-1, RM-2, RO-2, LC-1, SE-1, OM-1, AA-1, GL-1, CO-1
+
+THREE-TIER STRUCTURE: Foundation / Common / Specialized
+CATEGORY INDEX: 4 dimensions (Risk Universality, AI System Type,
+                Deployment Domain, Governance Category)
+
+Pre-seeded dataset: UN_AI_Governance_Dataset_v2.xlsx
+  59 controls, 140 requirements, 38 metric definitions, 16 manual controls
+
+================================================================================
+SECTION 12 — API CONTRACT (19 ENDPOINTS)
+================================================================================
+
+Base URL: https://{governance-api-host}/api/v1
+Auth: Azure Entra ID Bearer token
+      Secretariat-Admin endpoints require governance.admin scope
+
+Endpoint groups:
+  Registration:      POST/GET/PATCH /applications
+  Tier:              GET /applications/{id}/tier[/history]
+  Catalog:           GET /catalog/controls, /catalog/requirements,
+                     /catalog/interpretations, POST /catalog/interpretations
+  Compliance:        GET/POST /applications/{id}/compliance, /controls
+  Peer intelligence: GET /applications/{id}/alignment, /benchmarks,
+                     /recommendations
+  Telemetry:         POST /telemetry/ingest, GET /telemetry/status
+  Curation:          GET/POST /curation/queue (admin only)
+
+================================================================================
+SECTION 13 — MCP SERVER (11 TOOLS)
+================================================================================
+
+Server name: ai-governance
+Auth: Azure Entra ID OAuth2 client_credentials, scope: governance.read
+
+Catalog tools (5):
+  search_controls, get_control_detail, get_requirement_detail,
+  list_controls_by_domain, get_interpretation_tree
+
+Peer intelligence tools (6):
+  get_peer_benchmarks, get_alignment_score, get_risk_tier,
+  get_recommended_controls, get_gap_analysis, get_compliance_trend
+
+================================================================================
+SECTION 14 — UPDATED 19-WEEK BUILD ROADMAP
+================================================================================
+
+Start date context: April 1, 2026
+
+PHASE 1 — Foundation (Wk 1-2) — IN PROGRESS
+  Remaining: Tasks 1.7, 1.8, 1.9, 1.10, 1.11 (see Section 5)
+  Gate: All services reachable, auth working end-to-end
+
+PHASE 2 — Data Layer (Wk 3-4)
+  Gate: Unified search returns faceted results
+  2.1  PostgreSQL schema migrations — all tables
+  2.2  pgvector + TimescaleDB hypertable
+  2.3  GraphDB ontology — RDF-star node/relationship definitions
+  2.4  Write adapter ABCs
+  2.5  AzureAISearchAdapter (hybrid + semantic ranker)
+  2.6  AzureOpenAIAdapter (point at aigov-gpt41)
+  2.7  GraphDB adapter (SPARQL)
+  2.8  Service Bus queue adapter
+  2.9  All telemetry source adapters
+  2.10 Seed 59 controls → Azure AI Search
+  2.11 Seed 140 requirements → Azure AI Search
+  2.12 Seed 59 controls → PostgreSQL
+  2.13 Seed 140 requirements → PostgreSQL
+  2.14 Verify unified search returns faceted results
+
+PHASE 3 — Product 1: Regulatory Intelligence (Wk 5-7)
+  Gate: MCP tools tested against live catalog
+  3.1–3.10 (unchanged from original handoff)
+
+PHASE 4 — Product 2: Governance Monitoring (Wk 8-11)
+  Gate: Register stub app, verify tier score and alignment score
+  4.1–4.13 (unchanged from original handoff)
+
+CRITICAL PATH: Phase 2 → Phase 3 → Phase 4
+Phases 5 and 6 start in parallel once Phase 3 API stable (end of Week 7)
+
+PHASE 5 — Dashboard (Wk 12-14)
+PHASE 6 — Product 3: RAG Application (Wk 15-17)
+PHASE 7 — Hardening (Wk 18-19)
+
+[Phases 5-7 unchanged from original handoff]
+
+================================================================================
+SECTION 15 — KEY DEVIATIONS FROM ORIGINAL SPEC
+================================================================================
+
+1. GPT-4.1 instead of GPT-4o
+   Deployments: aigov-gpt41 (gpt-4.1) and aigov-gpt41-mini (gpt-4.1-mini)
+   Action: Update all code references — do NOT deploy gpt-4o
+
+2. GraphDB VM is Standard_D2s_v3 (not B2s as spec suggested)
+   D2s_v3 = 2 vCPU, 8GB RAM — better than B2s for graph workloads
+   No change needed — keep as-is
+
+3. PostgreSQL in East US 2, Search in Central US, OpenAI/KV in East US
+   Minor cross-region latency acceptable at this scale
+   Monitor if latency becomes issue in Phase 7
+
+4. GraphDB VM currently deallocated
+   Auto-shutdown enabled at 23:00 UTC
+   Must be started and verified before Phase 2 begins
+   Consider disabling auto-shutdown or adjusting for dev work hours
+
+5. No pgvector or TimescaleDB extensions installed yet
+   Both must be enabled before Phase 2.2
+
+6. AI Search in Central US (not East US)
+   This is where Basic SKU was available — acceptable
+
+================================================================================
+SECTION 16 — NAMESPACE DECISION (RESOLVED)
+================================================================================
+
+Use generic governance.* namespace throughout:
+  OTEL resource attributes: governance.application_id, governance.division
+  Schema base URL: https://governance.truos.io/schemas/ (or chosen domain)
+  No UN-specific namespacing in the new platform
+
+================================================================================
+END OF HANDOFF DOCUMENT v2
+================================================================================

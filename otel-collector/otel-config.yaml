@@ -1,0 +1,72 @@
+# OpenTelemetry Collector configuration — local dev
+# Production: deployed as sidecar in Azure Container Apps environment (aigov-cae)
+#
+# KEY RULE: only forward metrics where deployment.environment == "production"
+# Connected apps emit OTEL as a side effect of normal operation.
+# They are instrumented, not aware they are being governed.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+  # Drop all non-production metrics — governance contract (Section 10)
+  filter/production_only:
+    error_mode: ignore
+    metrics:
+      datapoint:
+        - 'resource.attributes["deployment.environment"] != "production"'
+
+  # Validate mandatory resource attributes are present
+  filter/mandatory_attrs:
+    error_mode: ignore
+    metrics:
+      datapoint:
+        - >-
+          not IsMatch(resource.attributes["governance.application_id"], ".+") or
+          not IsMatch(resource.attributes["governance.division"], ".+")
+
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 256
+
+exporters:
+  # Forward processed metrics to FastAPI ingest endpoint
+  otlphttp/backend:
+    endpoint: http://backend:8000
+    tls:
+      insecure: true
+
+  # Local dev: log all telemetry to stdout
+  debug:
+    verbosity: basic
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  pprof:
+    endpoint: 0.0.0.0:1777
+
+service:
+  extensions: [health_check, pprof]
+  pipelines:
+    metrics:
+      receivers:  [otlp]
+      processors: [memory_limiter, filter/production_only, filter/mandatory_attrs, batch]
+      exporters:  [otlphttp/backend, debug]
+    traces:
+      receivers:  [otlp]
+      processors: [memory_limiter, batch]
+      exporters:  [debug]
+    logs:
+      receivers:  [otlp]
+      processors: [memory_limiter, batch]
+      exporters:  [debug]

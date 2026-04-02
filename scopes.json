@@ -1,0 +1,22 @@
+[
+  {
+    "id": "c7a8d9e0-f1b2-4c3d-8e4f-5a6b7c8d9e0f",
+    "adminConsentDescription": "Allows the application to read governance data on behalf of the signed-in user.",
+    "adminConsentDisplayName": "Read governance data",
+    "isEnabled": true,
+    "type": "User",
+    "userConsentDescription": "Allows the application to read governance data on your behalf.",
+    "userConsentDisplayName": "Read governance data",
+    "value": "governance.read"
+  },
+  {
+    "id": "d8b9e0f1-a2c3-4d5e-9f0a-1b2c3d4e5f6a",
+    "adminConsentDescription": "Allows the application to perform all governance administrative operations on behalf of the signed-in user.",
+    "adminConsentDisplayName": "Administer governance",
+    "isEnabled": true,
+    "type": "Admin",
+    "userConsentDescription": "Allows the application to administer governance settings on your behalf.",
+    "userConsentDisplayName": "Administer governance",
+    "value": "governance.admin"
+  }
+]

@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(az cognitiveservices:*)"
+      "Bash(az cognitiveservices:*)",
+      "Bash(python -m ruff check .)"
     ]
   }
 }

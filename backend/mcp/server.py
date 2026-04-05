@@ -15,9 +15,6 @@ Peer intelligence tools (6):
 
 Phase 3 implementation. Adapters injected from adapters/search and adapters/graph.
 """
-from typing import Any
-
-
 class GovernanceMCPServer:
     """
     Exposes the governance catalog and peer intelligence to external agents.

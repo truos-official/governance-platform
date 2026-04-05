@@ -171,11 +171,11 @@ class MetricReading(Base):
     """
     __tablename__ = "metric_reading"
     id             = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    collected_at   = Column(DateTime(timezone=True), primary_key=True, nullable=False)  # hypertable partition key
     application_id = Column(UUID(as_uuid=False), ForeignKey("application.id"), nullable=False)
-    metric_name    = Column(String, nullable=False)     # e.g. ai.model.error_rate
+    metric_name    = Column(Text, nullable=False)        # e.g. ai.model.error_rate
     value          = Column(Float, nullable=False)
-    attributes     = Column(JSON)                       # full OTEL resource attributes
-    collected_at   = Column(DateTime, nullable=False)   # hypertable partition key
+    attributes     = Column(JSON)                        # full OTEL resource attributes
     application    = relationship("Application", back_populates="metric_readings")
 
 

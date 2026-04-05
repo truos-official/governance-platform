@@ -1,0 +1,201 @@
+@prefix gov:  <https://governance.truos.io/schemas/> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+# ---------------------------------------------------------------------------
+# Ontology declaration
+# ---------------------------------------------------------------------------
+
+<https://governance.truos.io/schemas/>
+    a owl:Ontology ;
+    rdfs:label "AI Governance Platform Ontology" .
+
+# ---------------------------------------------------------------------------
+# Classes
+# ---------------------------------------------------------------------------
+
+gov:Regulation
+    a owl:Class ;
+    rdfs:label "Regulation" .
+
+gov:Requirement
+    a owl:Class ;
+    rdfs:label "Requirement" .
+
+gov:Control
+    a owl:Class ;
+    rdfs:label "Control" .
+
+gov:Application
+    a owl:Class ;
+    rdfs:label "Application" .
+
+gov:TaxonomyTerm
+    a owl:Class ;
+    rdfs:label "TaxonomyTerm" .
+
+# ---------------------------------------------------------------------------
+# Object Properties
+# ---------------------------------------------------------------------------
+
+gov:HAS_REQUIREMENT
+    a owl:ObjectProperty ;
+    rdfs:label "HAS_REQUIREMENT" ;
+    rdfs:domain gov:Regulation ;
+    rdfs:range  gov:Requirement .
+
+gov:SATISFIED_BY
+    a owl:ObjectProperty ;
+    rdfs:label "SATISFIED_BY" ;
+    rdfs:domain gov:Requirement ;
+    rdfs:range  gov:Control .
+
+gov:PARTIALLY_SATISFIED_BY
+    a owl:ObjectProperty ;
+    rdfs:label "PARTIALLY_SATISFIED_BY" ;
+    rdfs:domain gov:Requirement ;
+    rdfs:range  gov:Control .
+
+gov:IMPLIES
+    a owl:ObjectProperty ;
+    rdfs:label "IMPLIES" ;
+    rdfs:domain gov:Requirement ;
+    rdfs:range  gov:Requirement .
+
+gov:OVERLAPS
+    a owl:ObjectProperty ;
+    rdfs:label "OVERLAPS" ;
+    rdfs:domain gov:Requirement ;
+    rdfs:range  gov:Requirement .
+
+gov:SUPERSEDES
+    a owl:ObjectProperty ;
+    rdfs:label "SUPERSEDES" ;
+    rdfs:domain gov:Regulation ;
+    rdfs:range  gov:Regulation .
+
+gov:CONFLICTS_WITH
+    a owl:ObjectProperty ;
+    rdfs:label "CONFLICTS_WITH" ;
+    rdfs:domain gov:Control ;
+    rdfs:range  gov:Control .
+
+gov:DEPENDS_ON
+    a owl:ObjectProperty ;
+    rdfs:label "DEPENDS_ON" ;
+    rdfs:domain gov:Control ;
+    rdfs:range  gov:Control .
+
+gov:ADOPTS
+    a owl:ObjectProperty ;
+    rdfs:label "ADOPTS" ;
+    rdfs:domain gov:Application ;
+    rdfs:range  gov:Control .
+
+gov:SCOPED_TO
+    a owl:ObjectProperty ;
+    rdfs:label "SCOPED_TO" ;
+    rdfs:domain gov:Control ;
+    rdfs:range  gov:TaxonomyTerm .
+
+gov:EQUIVALENT_TO
+    a owl:ObjectProperty ;
+    rdfs:label "EQUIVALENT_TO" ;
+    rdfs:domain gov:TaxonomyTerm ;
+    rdfs:range  gov:TaxonomyTerm .
+
+gov:SUBTYPE_OF
+    a owl:ObjectProperty ;
+    rdfs:label "SUBTYPE_OF" ;
+    rdfs:domain gov:TaxonomyTerm ;
+    rdfs:range  gov:TaxonomyTerm .
+
+gov:MAPS_TO
+    a owl:ObjectProperty ;
+    rdfs:label "MAPS_TO" ;
+    rdfs:domain gov:Requirement ;
+    rdfs:range  gov:TaxonomyTerm .
+
+# ---------------------------------------------------------------------------
+# Datatype Properties
+# ---------------------------------------------------------------------------
+
+gov:controlCode
+    a owl:DatatypeProperty ;
+    rdfs:label  "controlCode" ;
+    rdfs:domain gov:Control ;
+    rdfs:range  xsd:string .
+
+gov:controlTier
+    a owl:DatatypeProperty ;
+    rdfs:label  "controlTier" ;
+    rdfs:domain gov:Control ;
+    rdfs:range  xsd:string .
+
+gov:controlDomain
+    a owl:DatatypeProperty ;
+    rdfs:label  "controlDomain" ;
+    rdfs:domain gov:Control ;
+    rdfs:range  xsd:string .
+
+gov:requirementCode
+    a owl:DatatypeProperty ;
+    rdfs:label  "requirementCode" ;
+    rdfs:domain gov:Requirement ;
+    rdfs:range  xsd:string .
+
+gov:jurisdiction
+    a owl:DatatypeProperty ;
+    rdfs:label  "jurisdiction" ;
+    rdfs:domain gov:Requirement ;
+    rdfs:range  xsd:string .
+
+gov:riskTier
+    a owl:DatatypeProperty ;
+    rdfs:label  "riskTier" ;
+    rdfs:domain gov:Application ;
+    rdfs:range  xsd:string .
+
+gov:alignmentScore
+    a owl:DatatypeProperty ;
+    rdfs:label  "alignmentScore" ;
+    rdfs:domain gov:Application ;
+    rdfs:range  xsd:float .
+
+# ---------------------------------------------------------------------------
+# RDF-Star Annotation Properties
+# ---------------------------------------------------------------------------
+
+gov:confidence_score
+    a owl:AnnotationProperty ;
+    rdfs:label "confidence_score" ;
+    rdfs:range xsd:float .
+
+gov:asserted_by
+    a owl:AnnotationProperty ;
+    rdfs:label "asserted_by" ;
+    rdfs:comment "User UUID of the asserting party." ;
+    rdfs:range xsd:string .
+
+gov:reviewed_by
+    a owl:AnnotationProperty ;
+    rdfs:label "reviewed_by" ;
+    rdfs:comment "User UUID of the reviewing party." ;
+    rdfs:range xsd:string .
+
+gov:effective_from
+    a owl:AnnotationProperty ;
+    rdfs:label "effective_from" ;
+    rdfs:range xsd:date .
+
+gov:effective_to
+    a owl:AnnotationProperty ;
+    rdfs:label "effective_to" ;
+    rdfs:range xsd:date .
+
+gov:version
+    a owl:AnnotationProperty ;
+    rdfs:label "version" ;
+    rdfs:range xsd:integer .

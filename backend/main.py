@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AI Governance Platform API",
     version="0.1.0",
-    description="Phase 1 — skeleton. Architecture locked per handoff v2.",
+    description="Phase 1 — skeleton API for AI Governance Platform",
     lifespan=lifespan,
 )
 

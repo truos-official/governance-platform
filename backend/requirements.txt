@@ -17,9 +17,13 @@ openai==1.30.1
 sqlalchemy==2.0.30
 alembic==1.13.1
 psycopg2-binary==2.9.9
+asyncpg==0.29.0
 
 # Graph
 SPARQLWrapper==2.0.0
+
+azure-monitor-query==1.4.0
+redis==5.0.4
 
 # Telemetry
 opentelemetry-api==1.24.0
@@ -30,5 +34,4 @@ opentelemetry-instrumentation-fastapi==0.45b0
 # Dev / test
 pytest==8.2.0
 pytest-asyncio==0.23.6
-httpx==0.27.0
 ruff==0.4.4

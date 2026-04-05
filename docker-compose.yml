@@ -1,5 +1,3 @@
-version: "3.9"
-
 # Local dev stack — AI Governance Platform
 # Production target: Azure Container Apps environment (aigov-cae, eastus)
 #
@@ -25,7 +23,8 @@ services:
       AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
       AZURE_KEY_VAULT_URL: ${AZURE_KEY_VAULT_URL:-https://aigov-kv.vault.azure.net/}
       # Database — aigov-db (PostgreSQL 16, East US 2)
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://aigov:localdev@postgres:5432/aigov}
+      REDIS_URL: ${REDIS_URL:-redis://:localdev@redis:6379/0}
       # LLM — aigov-gpt41 (gpt-4.1) — do NOT use gpt-4o
       AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
       AZURE_OPENAI_DEPLOYMENT: aigov-gpt41
@@ -45,13 +44,57 @@ services:
     volumes:
       - ./backend:/app
     depends_on:
-      - otel-collector
+      otel-collector:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 5s
       retries: 3
+
+  # --------------------------------------------------------------------------
+  # PostgreSQL 16 with pgvector
+  # --------------------------------------------------------------------------
+  postgres:
+    build:
+      context: ./infra/postgres
+      dockerfile: Dockerfile
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: aigov
+      POSTGRES_USER: aigov
+      POSTGRES_PASSWORD: localdev
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aigov"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --------------------------------------------------------------------------
+  # Redis 7
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass localdev
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "localdev", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # --------------------------------------------------------------------------
   # OpenTelemetry Collector
@@ -100,3 +143,7 @@ services:
       - backend
       - otel-collector
     restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

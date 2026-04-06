@@ -3,6 +3,8 @@
 // Stack: React, no TypeScript, CSS variables, inline styles (per handoff v2 Section 7).
 // No lucide-react or external component libraries in this project.
 
+import InterpretationsPanel from "./components/InterpretationsPanel";
+
 function App() {
   return (
     <div style={{ fontFamily: "system-ui, sans-serif", padding: "2rem", color: "var(--color-text, #1a1a1a)" }}>
@@ -29,6 +31,7 @@ function App() {
           ))}
         </ul>
       </section>
+      <InterpretationsPanel />
     </div>
   );
 }

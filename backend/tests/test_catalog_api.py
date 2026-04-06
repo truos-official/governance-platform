@@ -68,9 +68,37 @@ class _FakeSearchAdapter:
         self._results = results
         self.calls: list[dict] = []
 
-    async def search(self, query: str, filters: dict | None, top: int) -> list[dict]:
-        self.calls.append({"query": query, "filters": filters, "top": top})
-        return self._results
+    async def search(
+        self,
+        query: str,
+        filters: dict | None,
+        top: int,
+        *,
+        skip: int = 0,
+        order_by: list[str] | None = None,
+        include_total_count: bool = False,
+    ) -> tuple[list[dict], int | None]:
+        self.calls.append(
+            {
+                "query": query,
+                "filters": filters,
+                "top": top,
+                "skip": skip,
+                "order_by": order_by,
+                "include_total_count": include_total_count,
+            }
+        )
+        rows = list(self._results)
+
+        if order_by:
+            for clause in reversed(order_by):
+                field, direction = clause.split()
+                reverse = direction.lower() == "desc"
+                rows.sort(key=lambda item: str(item.get(field) or "").lower(), reverse=reverse)
+
+        page = rows[skip : skip + top]
+        total = len(rows) if include_total_count else None
+        return page, total
 
 
 def test_list_controls_returns_items() -> None:
@@ -248,7 +276,10 @@ def test_unified_search_passes_filters_to_adapter(monkeypatch) -> None:
         "tier": "COMMON",
         "measurement_mode": "manual",
     }
-    assert adapter.calls[0]["top"] == 12
+    assert adapter.calls[0]["top"] == 7
+    assert adapter.calls[0]["skip"] == 5
+    assert adapter.calls[0]["order_by"] is None
+    assert adapter.calls[0]["include_total_count"] is True
 
 
 def test_unified_search_returns_503_when_adapter_config_missing(monkeypatch) -> None:
@@ -290,9 +321,36 @@ def test_unified_search_applies_skip_limit_pagination(monkeypatch) -> None:
     assert payload["items"][0]["id"] == "doc_2"
 
 
+def test_unified_search_forwards_sort_to_adapter(monkeypatch) -> None:
+    from api import catalog as catalog_module
+
+    adapter = _FakeSearchAdapter(
+        results=[
+            {"id": "doc_1", "code": "B-20", "title": "Beta", "type": "control", "score": 2.0},
+            {"id": "doc_2", "code": "A-10", "title": "Alpha", "type": "control", "score": 1.0},
+        ]
+    )
+    monkeypatch.setattr(catalog_module, "get_search_adapter", lambda index_name: adapter)
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/catalog/search?q=oversight&sort=code&limit=5")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [item["code"] for item in payload["items"]] == ["A-10", "B-20"]
+    assert adapter.calls[0]["order_by"] == ["code asc", "title asc"]
+
+
 def test_unified_search_requires_query_param_q() -> None:
     with TestClient(app) as client:
         response = client.get("/api/v1/catalog/search")
+
+    assert response.status_code == 422
+
+
+def test_unified_search_rejects_invalid_sort_value() -> None:
+    with TestClient(app) as client:
+        response = client.get("/api/v1/catalog/search?q=oversight&sort=priority")
 
     assert response.status_code == 422
 

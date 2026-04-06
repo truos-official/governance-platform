@@ -5,8 +5,17 @@ class SearchAdapter(ABC):
     """Abstract base class for full-text and vector search backends."""
 
     @abstractmethod
-    async def search(self, query: str, filters: dict | None, top: int) -> list[dict]:
-        """Execute a search query and return ranked result documents."""
+    async def search(
+        self,
+        query: str,
+        filters: dict | None,
+        top: int,
+        *,
+        skip: int = 0,
+        order_by: list[str] | None = None,
+        include_total_count: bool = False,
+    ) -> tuple[list[dict], int | None]:
+        """Execute a search query and return (documents, total_count)."""
 
     @abstractmethod
     async def index_document(self, id: str, document: dict) -> bool:

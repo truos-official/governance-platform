@@ -243,6 +243,14 @@ def _build_autocomplete_candidates(rows: list[dict]) -> list[AutocompleteItem]:
     return items
 
 
+def _search_order_by(sort: Literal["relevance", "code", "title"]) -> list[str] | None:
+    if sort == "code":
+        return ["code asc", "title asc"]
+    if sort == "title":
+        return ["title asc", "code asc"]
+    return None
+
+
 def _interpretation_filters(
     requirement_id: UUID | None,
     layer: Literal["SOURCE", "SYSTEM", "USER"] | None,
@@ -433,7 +441,15 @@ async def get_requirement(
     return RequirementListItem(**row)
 
 
-@router.get("/catalog/search", response_model=UnifiedSearchResponse)
+@router.get(
+    "/catalog/search",
+    response_model=UnifiedSearchResponse,
+    summary="Unified catalog search",
+    description=(
+        "Search controls and requirements with optional filters and pagination. "
+        "Use sort=relevance|code|title for globally stable ordering across pages."
+    ),
+)
 async def unified_search(
     q: str = Query(..., min_length=1, max_length=200, description="Search query text"),
     type: Literal["control", "requirement"] | None = Query(default=None),
@@ -441,6 +457,11 @@ async def unified_search(
     tier: Literal["FOUNDATION", "COMMON", "SPECIALIZED"] | None = Query(default=None),
     jurisdiction: str | None = Query(default=None),
     measurement_mode: Literal["system_calculated", "hybrid", "manual"] | None = Query(default=None),
+    sort: Literal["relevance", "code", "title"] = Query(
+        default="relevance",
+        description="Sort order: relevance (default), code, or title",
+        examples=["relevance", "code", "title"],
+    ),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
 ) -> UnifiedSearchResponse:
@@ -461,22 +482,25 @@ async def unified_search(
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    raw_results = await adapter.search(
+    order_by = _search_order_by(sort)
+    page_rows, total_count = await adapter.search(
         query=q,
         filters=filters or None,
-        top=skip + limit,
+        top=limit,
+        skip=skip,
+        order_by=order_by,
+        include_total_count=True,
     )
 
-    page = raw_results[skip : skip + limit]
-    items = [SearchResultItem(**row) for row in page]
+    items = [SearchResultItem(**row) for row in page_rows]
     facets = _build_facets(
-        rows=raw_results,
+        rows=page_rows,
         fields=["type", "domain", "tier", "jurisdiction", "measurement_mode", "source"],
     )
 
     return UnifiedSearchResponse(
         items=items,
-        total=len(raw_results),
+        total=int(total_count) if total_count is not None else len(page_rows),
         skip=skip,
         limit=limit,
         facets=facets,
@@ -499,7 +523,7 @@ async def autocomplete(
     except ValueError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    raw_results = await adapter.search(
+    raw_results, _ = await adapter.search(
         query=q,
         filters=filters or None,
         top=skip + limit,

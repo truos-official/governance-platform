@@ -23,7 +23,7 @@ services:
       AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
       AZURE_KEY_VAULT_URL: ${AZURE_KEY_VAULT_URL:-https://aigov-kv.vault.azure.net/}
       # Database — aigov-db (PostgreSQL 16, East US 2)
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://aigov:localdev@postgres:5432/aigov}
+      DATABASE_URL: ${BACKEND_DATABASE_URL:-postgresql+asyncpg://aigov:localdev@postgres:5432/aigov}
       REDIS_URL: ${REDIS_URL:-redis://:localdev@redis:6379/0}
       # LLM — aigov-gpt41 (gpt-4.1) — do NOT use gpt-4o
       AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
@@ -52,7 +52,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -113,7 +113,7 @@ services:
       - "13133:13133" # Health check
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:13133"]
+      test: ["CMD", "/otelcol-contrib", "validate", "--config", "/etc/otel/config.yaml"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -147,3 +147,5 @@ services:
 volumes:
   postgres_data:
   redis_data:
+
+

@@ -1,4 +1,5 @@
 import React from "react";
+import AlignmentWeightsPanel from "./components/AlignmentWeightsPanel";
 import CatalogSearchPanel from "./components/CatalogSearchPanel";
 import InterpretationsPanel from "./components/InterpretationsPanel";
 
@@ -56,6 +57,7 @@ function App() {
 
         <CatalogSearchPanel />
         <InterpretationsPanel />
+        <AlignmentWeightsPanel />
       </main>
     </div>
   );

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+from api.admin import router as admin_router
 from api.applications import router as applications_router
 from api.catalog import router as catalog_router
 from api.compliance import router as compliance_router
@@ -32,6 +33,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(admin_router,        prefix="/api/v1")
 app.include_router(applications_router, prefix="/api/v1")
 app.include_router(catalog_router,      prefix="/api/v1")
 app.include_router(compliance_router,   prefix="/api/v1")

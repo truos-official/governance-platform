@@ -200,6 +200,24 @@ class TierPeerAggregate(Base):
     __table_args__  = (UniqueConstraint("tier", "metric_name"),)
 
 
+class AlignmentWeightConfig(Base):
+    """
+    Admin-configurable weights for the alignment score formula.
+    Immutable rows — never updated, only inserted.
+    Active config = latest row where is_active=True.
+    Full history retained for audit.
+    """
+    __tablename__ = "alignment_weight_config"
+    id                 = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    peer_adoption_rate = Column(Float, nullable=False)
+    regulatory_density = Column(Float, nullable=False)
+    trend_velocity     = Column(Float, nullable=False)
+    set_by             = Column(String, nullable=False)
+    set_at             = Column(DateTime, default=datetime.utcnow, nullable=False)
+    reason             = Column(Text, nullable=True)
+    is_active          = Column(Boolean, nullable=False, default=True)
+
+
 # ---------------------------------------------------------------------------
 # Telemetry / KPI
 # ---------------------------------------------------------------------------

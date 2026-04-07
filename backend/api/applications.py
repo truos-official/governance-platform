@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.models import Application, TierChangeEvent, ControlAssignment
 from db.session import get_db_session as get_db
+from core.alignment import calculate_alignment, AlignmentResult
 from core.tier_engine import registration_trigger, TierResult, Tier
 
 router = APIRouter(tags=["applications"])
@@ -354,8 +355,37 @@ async def get_tier_history(app_id: str, db: AsyncSession = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 @router.get("/applications/{app_id}/alignment")
-async def get_alignment(app_id: str):
-    raise NotImplementedError("Phase 4.6")
+async def get_alignment(app_id: str, db: AsyncSession = Depends(get_db)):
+    app = await db.get(Application, app_id)
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    result = await calculate_alignment(app, db)
+
+    return {
+        "application_id":    result.application_id,
+        "alignment_score":   result.alignment_score,
+        "calculated_at":     result.calculated_at,
+        "weights_config_id": result.weights_config_id,
+        "weights": {
+            "peer_adoption_rate": result.w1_peer,
+            "regulatory_density": result.w2_regulatory,
+            "trend_velocity":     result.w3_trend,
+        },
+        "peer_cohort_size": result.peer_cohort_size,
+        "commentary":       result.commentary,
+        "controls": [
+            {
+                "control_id":          c.control_id,
+                "peer_adoption_rate":  c.peer_adoption_rate,
+                "regulatory_density":  c.regulatory_density,
+                "trend_velocity":      c.trend_velocity,
+                "control_weight":      c.control_weight,
+                "adopted":             c.adopted,
+            }
+            for c in result.controls
+        ],
+    }
 
 
 @router.get("/applications/{app_id}/benchmarks")

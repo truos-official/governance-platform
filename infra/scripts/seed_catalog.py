@@ -203,6 +203,76 @@ async def seed_metric_definitions(conn) -> int:
     return count
 
 
+async def seed_control_requirements(conn) -> int:
+    """
+    Populate control_requirement join table from 'Requirements by Control' sheet.
+    Control ID column is sparse — appears once per group, then None for subsequent rows.
+    Skips separator rows (Requirement ID starts with ── or is a bracketed label).
+    """
+    # Build lookup maps: code -> id
+    ctrl_result = await conn.execute(text("SELECT id, code FROM control"))
+    control_by_code = {row.code: row.id for row in ctrl_result}
+
+    req_result = await conn.execute(text("SELECT id, code FROM requirement"))
+    requirement_by_code = {row.code: row.id for row in req_result}
+
+    wb  = _load_workbook()
+    ws  = wb["Requirements by Control"]
+    rows = _sheet_rows(ws)
+
+    count        = 0
+    skipped      = 0
+    current_ctrl = None
+
+    for row in rows:
+        ctrl_code = row.get("Control ID")
+        req_code  = row.get("Requirement ID")
+
+        # Update current control when a new one appears
+        if ctrl_code and str(ctrl_code).strip():
+            current_ctrl = str(ctrl_code).strip()
+
+        if not req_code:
+            continue
+
+        req_code = str(req_code).strip()
+
+        # Skip separator rows and bracketed group labels
+        if req_code.startswith("──") or (req_code.startswith("[") and req_code.endswith("]")):
+            skipped += 1
+            continue
+
+        if not current_ctrl:
+            skipped += 1
+            continue
+
+        control_id     = control_by_code.get(current_ctrl)
+        requirement_id = requirement_by_code.get(req_code)
+
+        if not control_id:
+            print(f"  WARNING: control '{current_ctrl}' not found — skipping req '{req_code}'")
+            skipped += 1
+            continue
+
+        if not requirement_id:
+            print(f"  WARNING: requirement '{req_code}' not found — skipping")
+            skipped += 1
+            continue
+
+        await conn.execute(
+            text("""
+                INSERT INTO control_requirement (control_id, requirement_id)
+                VALUES (:control_id, :requirement_id)
+                ON CONFLICT DO NOTHING
+            """),
+            {"control_id": control_id, "requirement_id": requirement_id},
+        )
+        count += 1
+
+    print(f"  Control-requirement links: {count} inserted, {skipped} skipped")
+    return count
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -211,7 +281,7 @@ async def main() -> None:
     db_url = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
     engine = create_async_engine(db_url, echo=False)
 
-    n_controls = n_requirements = n_metrics = 0
+    n_controls = n_requirements = n_metrics = n_ctrl_reqs = 0
 
     async with engine.begin() as conn:
         print("\n── Sheet 1: Controls ──")
@@ -232,8 +302,14 @@ async def main() -> None:
         except Exception as exc:
             print(f"  ERROR seeding metric definitions: {exc}")
 
+        print("\nSeeding control-requirement links...")
+        try:
+            n_ctrl_reqs = await seed_control_requirements(conn)
+        except Exception as exc:
+            print(f"  ERROR seeding control-requirement links: {exc}")
+
     await engine.dispose()
-    print(f"\nSeeded: {n_controls} controls, {n_requirements} requirements, {n_metrics} metric definitions")
+    print(f"\nSeeded: {n_controls} controls, {n_requirements} requirements, {n_metrics} metric definitions, {n_ctrl_reqs} control-requirement links")
 
 
 if __name__ == "__main__":

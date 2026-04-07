@@ -41,7 +41,7 @@ processors:
 exporters:
   # Forward processed metrics to FastAPI ingest endpoint
   otlphttp/backend:
-    endpoint: http://backend:8000
+    metrics_endpoint: http://backend:8000/telemetry/ingest
     tls:
       insecure: true
 

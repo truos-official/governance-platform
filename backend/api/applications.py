@@ -92,6 +92,7 @@ class ApplicationResponse(BaseModel):
     affected_populations: str
     consent_scope:        str
     owner_email:          Optional[str]
+    status:               str
     current_tier:         Optional[str]
     registered_at:        datetime
 
@@ -157,6 +158,7 @@ def _app_to_response(app: Application) -> ApplicationResponse:
         affected_populations=app.affected_populations,
         consent_scope=app.consent_scope,
         owner_email=app.owner_email,
+        status=app.status,
         current_tier=app.current_tier,
         registered_at=app.registered_at,
     )
@@ -274,6 +276,22 @@ async def update_application(
     if body.consent_scope is not None:
         app.consent_scope = body.consent_scope
 
+    await db.commit()
+    await db.refresh(app)
+    return _app_to_response(app)
+
+
+@router.patch("/applications/{app_id}/disconnect",
+              response_model=ApplicationResponse)
+async def disconnect_application(
+    app_id: str,
+    db:     AsyncSession = Depends(get_db),
+):
+    """Mark application as disconnected. Preserves all historical data."""
+    app = await db.get(Application, app_id)
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+    app.status = "disconnected"
     await db.commit()
     await db.refresh(app)
     return _app_to_response(app)

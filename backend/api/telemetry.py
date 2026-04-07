@@ -140,6 +140,11 @@ async def ingest(request: Request, db: AsyncSession = Depends(get_db)):
             skipped_count += 1
             continue
 
+        if app.status != "active":
+            logger.warning(f"Dropping metrics for {app.status} application: {app_id}")
+            skipped_count += 1
+            continue
+
         # --- Collect metric values for recalculation signals ---
         recalc_signals: dict[str, float] = {}
 

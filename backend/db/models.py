@@ -128,6 +128,9 @@ class Application(Base):
 
     owner_email         = Column(String, nullable=True)
 
+    status              = Column(String, nullable=False, default="active")
+    # active | suspended | disconnected
+
     current_tier        = Column(String, nullable=True)
     # Foundation | Common | High — denormalized cache, source of truth is tier_change_event
 

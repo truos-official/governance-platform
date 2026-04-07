@@ -28,6 +28,13 @@ class GovernanceMCPServer:
     Connected via MCP protocol - not a REST API.
     """
 
+    TIER_ORDER = ("LOW", "MEDIUM", "HIGH")
+    DOMAIN_FLOOR = {
+        "healthcare": "MEDIUM",
+        "criminal_justice": "HIGH",
+        "financial": "MEDIUM",
+    }
+
     def __init__(self, search_adapter, graph_adapter, db_session):
         self._search = search_adapter
         self._graph = graph_adapter
@@ -275,9 +282,66 @@ class GovernanceMCPServer:
         """
         raise NotImplementedError("Phase 3.8")
 
-    def get_risk_tier(self, app_id: str) -> dict:
+    async def get_risk_tier(self, app_id: str) -> dict:
         """Current risk tier with NIST score + domain floor applied."""
-        raise NotImplementedError("Phase 3.8")
+        app_result = await self._db.execute(
+            text(
+                """
+                SELECT
+                    a.id::text AS id,
+                    a.domain AS domain
+                FROM application a
+                WHERE a.id::text = :app_id
+                """
+            ),
+            {"app_id": app_id},
+        )
+        app_row = app_result.mappings().first()
+        if app_row is None:
+            raise LookupError("Application not found")
+
+        tier_result = await self._db.execute(
+            text(
+                """
+                SELECT
+                    tce.new_tier AS new_tier,
+                    tce.changed_at AS changed_at
+                FROM tier_change_event tce
+                WHERE tce.application_id::text = :app_id
+                ORDER BY tce.changed_at DESC
+                LIMIT 1
+                """
+            ),
+            {"app_id": app_id},
+        )
+        tier_row = tier_result.mappings().first()
+
+        raw_tier = str(tier_row["new_tier"]).upper() if tier_row is not None else "LOW"
+        if raw_tier not in self.TIER_ORDER:
+            raw_tier = "LOW"
+        source = "tier_change_event" if tier_row is not None else "default_low_no_events"
+
+        domain = app_row.get("domain")
+        domain_floor = self.DOMAIN_FLOOR.get((domain or "").lower()) if domain else None
+        if domain_floor:
+            tier_index = {tier: i for i, tier in enumerate(self.TIER_ORDER)}
+            effective_tier = self.TIER_ORDER[max(tier_index[raw_tier], tier_index[domain_floor])]
+        else:
+            effective_tier = raw_tier
+
+        changed_at = tier_row.get("changed_at") if tier_row is not None else None
+        if isinstance(changed_at, datetime):
+            changed_at = changed_at.isoformat()
+
+        return {
+            "app_id": app_id,
+            "domain": domain,
+            "tier_raw": raw_tier,
+            "tier_effective": effective_tier,
+            "domain_floor": domain_floor,
+            "last_changed_at": changed_at,
+            "source": source,
+        }
 
     def get_recommended_controls(self, app_id: str) -> list[dict]:
         """Controls recommended based on gap analysis + peer benchmarks."""

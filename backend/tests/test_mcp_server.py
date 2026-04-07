@@ -224,3 +224,102 @@ def test_list_controls_by_domain_returns_rows() -> None:
     assert len(rows) == 1
     assert rows[0]["domain"] == "AA"
     assert db.calls[0]["params"] == {"domain": "AA"}
+
+
+def test_get_risk_tier_returns_latest_event_with_floor_applied() -> None:
+    db = _FakeDBSession(
+        results=[
+            _FakeResult(
+                rows=[
+                    {
+                        "id": "app-1",
+                        "domain": "criminal_justice",
+                    }
+                ]
+            ),
+            _FakeResult(
+                rows=[
+                    {
+                        "new_tier": "MEDIUM",
+                        "changed_at": datetime(2026, 4, 6, 12, 0, 0, tzinfo=timezone.utc),
+                    }
+                ]
+            ),
+        ]
+    )
+    server = GovernanceMCPServer(_FakeSearchAdapter([]), _FakeGraphAdapter(), db)
+
+    result = asyncio.run(server.get_risk_tier("app-1"))
+
+    assert result["app_id"] == "app-1"
+    assert result["tier_raw"] == "MEDIUM"
+    assert result["domain_floor"] == "HIGH"
+    assert result["tier_effective"] == "HIGH"
+    assert result["source"] == "tier_change_event"
+    assert result["last_changed_at"] is not None
+
+
+def test_get_risk_tier_defaults_low_when_no_events_and_applies_floor() -> None:
+    db = _FakeDBSession(
+        results=[
+            _FakeResult(
+                rows=[
+                    {
+                        "id": "app-2",
+                        "domain": "healthcare",
+                    }
+                ]
+            ),
+            _FakeResult(rows=[]),
+        ]
+    )
+    server = GovernanceMCPServer(_FakeSearchAdapter([]), _FakeGraphAdapter(), db)
+
+    result = asyncio.run(server.get_risk_tier("app-2"))
+
+    assert result["tier_raw"] == "LOW"
+    assert result["domain_floor"] == "MEDIUM"
+    assert result["tier_effective"] == "MEDIUM"
+    assert result["source"] == "default_low_no_events"
+    assert result["last_changed_at"] is None
+
+
+def test_get_risk_tier_raises_for_missing_application() -> None:
+    db = _FakeDBSession(results=[_FakeResult(rows=[])])
+    server = GovernanceMCPServer(_FakeSearchAdapter([]), _FakeGraphAdapter(), db)
+
+    try:
+        asyncio.run(server.get_risk_tier("missing-app"))
+        raise AssertionError("Expected LookupError for missing application")
+    except LookupError as exc:
+        assert str(exc) == "Application not found"
+
+
+def test_get_risk_tier_coerces_invalid_raw_tier_to_low() -> None:
+    db = _FakeDBSession(
+        results=[
+            _FakeResult(
+                rows=[
+                    {
+                        "id": "app-3",
+                        "domain": "financial",
+                    }
+                ]
+            ),
+            _FakeResult(
+                rows=[
+                    {
+                        "new_tier": "CRITICAL",
+                        "changed_at": datetime(2026, 4, 6, 12, 30, 0, tzinfo=timezone.utc),
+                    }
+                ]
+            ),
+        ]
+    )
+    server = GovernanceMCPServer(_FakeSearchAdapter([]), _FakeGraphAdapter(), db)
+
+    result = asyncio.run(server.get_risk_tier("app-3"))
+
+    assert result["tier_raw"] == "LOW"
+    assert result["domain_floor"] == "MEDIUM"
+    assert result["tier_effective"] == "MEDIUM"

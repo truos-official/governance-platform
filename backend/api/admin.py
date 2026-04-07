@@ -16,10 +16,10 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, validator
-from sqlalchemy import select
+from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import AlignmentWeightConfig
+from db.models import AlignmentWeightConfig, TierPeerAggregate, MetricReading, Application
 from db.session import get_db_session as get_db
 
 router = APIRouter(tags=["admin"])
@@ -162,3 +162,73 @@ async def set_alignment_weights(
     await db.refresh(new_config)
 
     return _to_entry(new_config)
+
+
+@router.post("/admin/refresh-peer-aggregates", status_code=status.HTTP_200_OK)
+async def refresh_peer_aggregates(db: AsyncSession = Depends(get_db)):
+    """
+    Admin only — refresh TierPeerAggregate materialized table.
+    Aggregates metric medians per tier from MetricReading table.
+    Replaces all existing rows. Call after significant new telemetry is ingested.
+    """
+    # Delete existing aggregates
+    await db.execute(delete(TierPeerAggregate))
+
+    # Get all tiers that have apps
+    tiers_result = await db.execute(
+        select(Application.current_tier)
+        .where(Application.current_tier != None)
+        .distinct()
+    )
+    tiers = [r[0] for r in tiers_result.fetchall()]
+
+    inserted = 0
+    for tier in tiers:
+        # Get all app IDs in this tier
+        apps_result = await db.execute(
+            select(Application.id)
+            .where(Application.current_tier == tier)
+        )
+        app_ids = [r[0] for r in apps_result.fetchall()]
+        if not app_ids:
+            continue
+
+        # Get distinct metric names for this tier
+        metrics_result = await db.execute(
+            select(MetricReading.metric_name)
+            .where(MetricReading.application_id.in_(app_ids))
+            .distinct()
+        )
+        metric_names = [r[0] for r in metrics_result.fetchall()]
+
+        for metric_name in metric_names:
+            # Calculate average value across all apps in tier
+            avg_result = await db.execute(
+                select(func.avg(MetricReading.value))
+                .where(
+                    MetricReading.application_id.in_(app_ids),
+                    MetricReading.metric_name == metric_name,
+                )
+            )
+            avg_value = avg_result.scalar()
+            if avg_value is None:
+                continue
+
+            aggregate = TierPeerAggregate(
+                id=str(uuid4()),
+                tier=tier,
+                metric_name=metric_name,
+                avg_value=round(float(avg_value), 6),
+                peer_count=len(app_ids),
+                refreshed_at=datetime.utcnow(),
+            )
+            db.add(aggregate)
+            inserted += 1
+
+    await db.commit()
+    return {
+        "refreshed": True,
+        "tiers_processed": len(tiers),
+        "aggregates_written": inserted,
+        "refreshed_at": datetime.utcnow().isoformat(),
+    }

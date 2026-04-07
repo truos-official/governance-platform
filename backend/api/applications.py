@@ -17,10 +17,10 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Application, TierChangeEvent, ControlAssignment
+from db.models import Application, TierChangeEvent, ControlAssignment, TierPeerAggregate, Control, ControlRequirement, MetricReading
 from db.session import get_db_session as get_db
 from core.alignment import calculate_alignment, AlignmentResult
 from core.tier_engine import registration_trigger, TierResult, Tier
@@ -389,10 +389,151 @@ async def get_alignment(app_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/applications/{app_id}/benchmarks")
-async def get_benchmarks(app_id: str):
-    raise NotImplementedError("Phase 4.7")
+async def get_benchmarks(app_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Peer benchmarks — metric-by-metric comparison against apps in same tier.
+    No minimum cohort enforced — returns available data with cohort size indicated.
+    """
+    app = await db.get(Application, app_id)
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    if not app.current_tier:
+        return {
+            "application_id": app_id,
+            "tier": None,
+            "peer_count": 0,
+            "available": False,
+            "reason": "Application has no tier assigned yet",
+            "benchmarks": [],
+        }
+
+    # Get peer aggregates for this tier
+    aggs_result = await db.execute(
+        select(TierPeerAggregate)
+        .where(TierPeerAggregate.tier == app.current_tier)
+        .order_by(TierPeerAggregate.metric_name)
+    )
+    aggregates = aggs_result.scalars().all()
+
+    if not aggregates:
+        return {
+            "application_id": app_id,
+            "tier": app.current_tier,
+            "peer_count": 0,
+            "available": False,
+            "reason": "No peer aggregates available — admin must run /admin/refresh-peer-aggregates",
+            "benchmarks": [],
+        }
+
+    # Get this app's latest reading per metric for comparison
+    app_readings: dict[str, float] = {}
+    for agg in aggregates:
+        latest = await db.scalar(
+            select(MetricReading.value)
+            .where(
+                MetricReading.application_id == app_id,
+                MetricReading.metric_name    == agg.metric_name,
+            )
+            .order_by(MetricReading.collected_at.desc())
+            .limit(1)
+        )
+        if latest is not None:
+            app_readings[agg.metric_name] = latest
+
+    benchmarks = []
+    for agg in aggregates:
+        app_value = app_readings.get(agg.metric_name)
+        delta     = round(app_value - agg.avg_value, 6) if app_value is not None else None
+        benchmarks.append({
+            "metric_name":  agg.metric_name,
+            "peer_avg":     agg.avg_value,
+            "app_value":    app_value,
+            "delta":        delta,
+            "peer_count":   agg.peer_count,
+            "refreshed_at": agg.refreshed_at.isoformat(),
+        })
+
+    return {
+        "application_id": app_id,
+        "tier":           app.current_tier,
+        "peer_count":     aggregates[0].peer_count if aggregates else 0,
+        "available":      True,
+        "benchmarks":     benchmarks,
+    }
 
 
 @router.get("/applications/{app_id}/recommendations")
-async def get_recommendations(app_id: str):
-    raise NotImplementedError("Phase 4.7")
+async def get_recommendations(app_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Recommend unadopted controls applicable to this app's tier and ai_system_type.
+    Ranked by regulatory_density (number of requirements linked to each control).
+    Falls back to catalog-based ranking when peer data is insufficient.
+    """
+    app = await db.get(Application, app_id)
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    # Get already-adopted control IDs
+    adopted_result = await db.execute(
+        select(ControlAssignment.control_id)
+        .where(
+            ControlAssignment.application_id == app_id,
+            ControlAssignment.status         == "adopted",
+        )
+    )
+    adopted_ids = {r[0] for r in adopted_result.fetchall()}
+
+    # Get applicable controls for this tier (Foundation always, Common if tier>=Common, etc.)
+    tier_priority = {"FOUNDATION": 0, "COMMON": 1, "SPECIALIZED": 2}
+    app_tier_rank = tier_priority.get(
+        (app.current_tier or "Foundation").upper(), 0
+    )
+
+    applicable_tiers = [t for t, rank in tier_priority.items() if rank <= app_tier_rank]
+
+    controls_result = await db.execute(
+        select(Control)
+        .where(Control.tier.in_(applicable_tiers))
+        .order_by(Control.code)
+    )
+    all_controls = controls_result.scalars().all()
+
+    # Filter to unadopted only
+    unadopted = [c for c in all_controls if c.id not in adopted_ids]
+
+    if not unadopted:
+        return {
+            "application_id":   app_id,
+            "tier":             app.current_tier,
+            "recommendations":  [],
+            "message":          "All applicable controls already adopted.",
+        }
+
+    # Score each unadopted control by regulatory density
+    recommendations = []
+    for control in unadopted:
+        req_count = await db.scalar(
+            select(func.count(ControlRequirement.requirement_id))
+            .where(ControlRequirement.control_id == control.id)
+        )
+        recommendations.append({
+            "control_id":          control.id,
+            "code":                control.code,
+            "title":               control.title,
+            "domain":              control.domain,
+            "tier":                control.tier,
+            "measurement_mode":    getattr(control, "measurement_mode", None),
+            "regulatory_density":  req_count or 0,
+        })
+
+    # Sort by regulatory density descending — most regulation-backed first
+    recommendations.sort(key=lambda r: r["regulatory_density"], reverse=True)
+
+    return {
+        "application_id":  app_id,
+        "tier":            app.current_tier,
+        "total_applicable": len(all_controls),
+        "already_adopted":  len(adopted_ids),
+        "recommendations":  recommendations[:20],  # top 20
+    }

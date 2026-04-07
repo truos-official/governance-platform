@@ -14,6 +14,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, relationship
+from pgvector.sqlalchemy import Vector
 
 
 def _uuid():
@@ -36,6 +37,7 @@ class Regulation(Base):
     source_url  = Column(String)
     effective_date = Column(DateTime)
     created_at  = Column(DateTime, default=datetime.utcnow)
+    embedding   = Column(Vector(3072), nullable=True)
     requirements = relationship("Requirement", back_populates="regulation")
 
 

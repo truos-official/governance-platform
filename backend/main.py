@@ -6,13 +6,15 @@ from api.applications import router as applications_router
 from api.catalog import router as catalog_router
 from api.compliance import router as compliance_router
 from api.telemetry import router as telemetry_router
+from db.session import get_engine
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Phase 2: initialise DB connection pool, verify adapter connectivity
+    # Initialize shared async engine once for API lifetime.
+    get_engine()
     yield
-    # Phase 2: close connections
+    await get_engine().dispose()
 
 
 app = FastAPI(

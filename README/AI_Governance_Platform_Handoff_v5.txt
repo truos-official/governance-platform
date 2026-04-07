@@ -1,0 +1,388 @@
+================================================================================
+AI GOVERNANCE PLATFORM - COMPLETE SESSION HANDOFF v5
+Single Source of Truth | As of April 7, 2026 (America/New_York)
+================================================================================
+
+PURPOSE
+-------
+This file replaces dependence on prior handoff files.
+A new coding agent should be able to resume from this document alone.
+
+================================================================================
+SECTION 1 - PRIMARY REPOSITORIES AND PATHS
+================================================================================
+
+Active implementation repo (authoritative codebase):
+  C:\Projects\aigov-platform
+
+Git remote:
+  https://github.com/truos-official/governance-platform.git
+
+Branch in use:
+  main
+
+Reference style repo (do not modify unless explicitly needed):
+  C:\Users\trist\OneDrive\Desktop\agentic-application
+  https://github.com/truos-official/governance-demo-agentic
+
+Reference copy currently present inside active repo (untracked):
+  C:\Projects\aigov-platform\.reference\governance-demo-agentic\
+
+Prior handoff files (historical only):
+  C:\Users\trist\OneDrive\Desktop\enterprise-application\README\AI_Governance_Platform_Handoff_v3.txt
+  C:\Users\trist\OneDrive\Desktop\enterprise-application\README\AI_Governance_Platform_Handoff_v4.txt
+
+================================================================================
+SECTION 2 - CURRENT GIT STATE (CRITICAL)
+================================================================================
+
+Last committed and pushed commit on origin/main:
+  794de91  Phase 3.8: implement MCP get_risk_tier tool
+
+Recent pushed history:
+  794de91  Phase 3.8: implement MCP get_risk_tier tool
+  0580c1a  Phase 3.5: implement MCP catalog tools
+  a88e81c  Backend-driven catalog sort with global pagination + docs/tests
+  6b8cd19  Unify interpretations API view and wire first frontend panel
+  f2d13c4  fix: stabilize local docker stack and seed Azure AI Search
+
+IMPORTANT: Local working tree contains substantial uncommitted work.
+Modified tracked files:
+  backend/db/models.py
+  backend/main.py
+  backend/mcp/server.py
+  backend/requirements.txt
+  backend/tests/test_mcp_server.py
+  frontend/src/App.jsx
+  frontend/src/main.jsx
+  infra/scripts/seed_catalog.py
+
+Untracked files:
+  backend/db/migrations/versions/2adce2384953_add_measurement_mode_to_control.py
+  backend/db/migrations/versions/8be69ee43014_add_unique_constraints_for_seeding.py
+  backend/db/migrations/versions/a67c0aafee61_add_embedding_to_regulation.py
+  backend/db/session.py
+  frontend/public/un-emblem.png
+  .reference/governance-demo-agentic/
+
+Transfer warning:
+- A fresh clone from GitHub will NOT include this uncommitted local delta.
+- To transfer full current state, commit/push or export patch before handoff.
+
+================================================================================
+SECTION 3 - LIVE RUNTIME SNAPSHOT (LOCAL)
+================================================================================
+
+Docker compose status (captured April 7, 2026):
+  backend                      healthy   :8000
+  postgres                     healthy   :5432
+  redis                        healthy   :6379
+  otel-collector               healthy   :4317/:4318/:8888/:13133
+  governance-event-collector   running   :8001
+
+Health checks:
+  GET http://localhost:8000/health -> {"status":"ok"}
+  GET http://localhost:8000/api/v1/info -> phase still reports 1 (stale metadata)
+
+Backend regression baseline (container run):
+  python -m pytest -q tests/test_mcp_server.py tests/test_catalog_api.py
+  Result: 46 passed
+
+================================================================================
+SECTION 4 - DEPENDENCIES AND RUNTIME
+================================================================================
+
+Backend runtime:
+  Python 3.11
+  FastAPI + SQLAlchemy async + Alembic
+  Azure SDKs (identity, key vault, search, service bus)
+  asyncpg + psycopg2-binary + pgvector
+  OpenTelemetry packages
+
+Key backend requirements file:
+  C:\Projects\aigov-platform\backend\requirements.txt
+
+Frontend runtime:
+  Node 20 (CI), Vite, React 18, Axios, ESLint
+
+Key frontend package file:
+  C:\Projects\aigov-platform\frontend\package.json
+
+Container definitions:
+  C:\Projects\aigov-platform\docker-compose.yml
+  C:\Projects\aigov-platform\backend\Dockerfile
+  C:\Projects\aigov-platform\governance-event-collector\Dockerfile
+
+Note:
+- frontend Dockerfile is not present in current repo.
+- governance-event-collector has no separate requirements.txt yet.
+
+================================================================================
+SECTION 5 - CURRENT IMPLEMENTATION STATUS (WHAT IS BUILT)
+================================================================================
+
+Phase 1 - Foundation:
+  COMPLETE
+
+Phase 2 - Data Layer:
+  COMPLETE baseline (schema/adapters/search seeding completed previously)
+  Local enhancements in progress (uncommitted):
+    - regulation.embedding field in ORM
+    - pgvector dependency
+    - seed script expansion
+    - 3 pending migrations (untracked)
+
+Phase 3 - Regulatory Intelligence + MCP:
+  LARGELY IMPLEMENTED (local state)
+
+  3A) Catalog API (implemented)
+    File: backend/api/catalog.py
+    Implemented endpoints:
+      GET  /catalog/controls
+      GET  /catalog/controls/{control_id}
+      GET  /catalog/requirements
+      GET  /catalog/requirements/{req_id}
+      GET  /catalog/search
+      GET  /catalog/autocomplete
+      GET  /catalog/interpretations (flat/tree)
+      POST /catalog/interpretations (versioned create)
+
+  3B) Frontend Product 1 panels (implemented)
+    Files:
+      frontend/src/components/CatalogSearchPanel.jsx
+      frontend/src/components/InterpretationsPanel.jsx
+      frontend/src/api/catalogClient.js
+      frontend/src/App.jsx
+      frontend/src/theme.css
+    Capabilities:
+      - Search with filters + sort + pagination
+      - Autocomplete
+      - Detail drilldown for control/requirement
+      - Interpretation tree paging
+      - UN emblem + enterprise shell layout
+
+  3C) MCP server tools (implemented locally in backend/mcp/server.py)
+    Catalog tools:
+      search_controls
+      get_control_detail
+      get_requirement_detail
+      list_controls_by_domain
+      get_interpretation_tree
+
+    Peer intelligence tools:
+      get_peer_benchmarks
+      get_alignment_score
+      get_risk_tier
+      get_recommended_controls
+      get_gap_analysis
+      get_compliance_trend
+
+    Test coverage file:
+      backend/tests/test_mcp_server.py
+
+  3D) Remaining Phase 3 gaps:
+    - MCP transport wiring is not yet exposed as a runtime endpoint.
+      (Class exists; integration layer still needed.)
+    - Typing cleanup for MCP constructor adapter args still pending.
+    - GraphDBAdapter RDF-star annotation literal handling still pending.
+
+Phase 4 - Governance Monitoring APIs and Engines:
+  NOT STARTED in API/core modules (still NotImplemented in:
+    api/applications.py,
+    api/compliance.py,
+    api/telemetry.py,
+    core/tier_engine.py,
+    core/alignment.py,
+    core/kpi_calculator.py)
+
+Phase 5 - Full frontend product experience:
+  PARTIAL
+  - Core shell and Product 1 panels exist.
+  - Remaining full dashboard tabs/workflows not implemented.
+
+Phase 6/7:
+  NOT STARTED
+
+================================================================================
+SECTION 6 - KEY FILE STRUCTURE (TRANSFER MAP)
+================================================================================
+
+Root:
+  .github/workflows/ci.yml
+  docker-compose.yml
+  .env.example
+
+Backend:
+  backend/main.py
+  backend/api/
+    applications.py
+    catalog.py
+    compliance.py
+    telemetry.py
+  backend/mcp/
+    server.py
+  backend/core/
+    tier_engine.py
+    alignment.py
+    kpi_calculator.py
+  backend/adapters/
+    graph/, search/, llm/, queue/, telemetry/
+  backend/db/
+    models.py
+    session.py (currently untracked local)
+    ontology.ttl
+    migrations/versions/
+
+Frontend:
+  frontend/src/App.jsx
+  frontend/src/main.jsx
+  frontend/src/theme.css
+  frontend/src/components/
+    CatalogSearchPanel.jsx
+    InterpretationsPanel.jsx
+  frontend/src/api/catalogClient.js
+  frontend/public/un-emblem.png (currently untracked local)
+
+Infra scripts:
+  infra/scripts/seed_catalog.py
+  infra/scripts/seed_search.py
+
+Collector:
+  governance-event-collector/collector.py
+
+================================================================================
+SECTION 7 - CI/CD STATUS
+================================================================================
+
+Workflow file:
+  .github/workflows/ci.yml
+
+Current CI jobs:
+  - Backend lint + tests
+  - Docker image builds (backend, otel-collector, governance-event-collector)
+  - Frontend lint + build
+
+Caution:
+- Since major current work is still uncommitted locally, CI on GitHub does not yet reflect the latest local implementation state.
+
+================================================================================
+SECTION 8 - UPDATED ROADMAP (RE-BASELINED)
+================================================================================
+
+As-of date: April 7, 2026
+
+Phase 1 (Foundation):
+  Complete
+
+Phase 2 (Data Layer):
+  Complete baseline
+  Remaining hardening:
+    - finalize/commit pending migrations
+    - validate migration chain on clean DB
+
+Phase 3 (Product 1 + MCP):
+  Near-complete in local workspace
+  Exit criteria to mark COMPLETE:
+    1) Commit/push local MCP + tests + supporting local file changes
+    2) Wire MCP runtime transport/endpoint
+    3) Close known technical debt (adapter typing + GraphDB literal handling)
+
+Phase 4 (Product 2 Governance Monitoring):
+  Next critical path
+  Build sequence:
+    4.1 Applications CRUD + registration
+    4.2 Telemetry ingest API + event collector business logic
+    4.3 Tier engine integration with immutable tier events
+    4.4 KPI calculator pipeline
+    4.5 Compliance endpoints for app/control status
+    4.6 Alignment API wired to engine
+    4.7 Benchmarks + recommendations API
+    4.8 End-to-end validation with seeded apps
+
+Phase 5 (Frontend full dashboard):
+  Expand from current Product 1 panels to full app-level governance UX.
+
+Phase 6 (Hardening and Ops):
+  Security, auth scope enforcement, observability, performance, DR patterns.
+
+Phase 7 (Release readiness):
+  Final QA, acceptance tests, deployment runbook, production cutover.
+
+================================================================================
+SECTION 9 - NEW TARGET PRODUCT REQUIREMENTS (NEXT BASELINE)
+================================================================================
+
+Product target remains three-part, but implementation requirements are now updated:
+
+Product 1 - Regulatory Intelligence (Target: complete and stabilize)
+  Required:
+    - searchable control/requirement catalog with deterministic pagination/sort
+    - interpretation lifecycle (source/system/user), versioned and auditable
+    - MCP catalog + peer tools callable by external agents
+    - curation queue workflow completion
+
+Product 2 - Governance Monitoring (Next major build)
+  Required:
+    - application onboarding and metadata ownership model
+    - OTEL-driven evidence ingestion for production environment only
+    - KPI evaluation producing PASS/FAIL/INSUFFICIENT_DATA
+    - immutable risk tier history + tier explainability
+    - alignment/benchmark/recommendation APIs exposed via REST + MCP parity
+
+Product 3 - Native RAG Governance Assistant (future)
+  Required:
+    - policy-aware retrieval over regulatory corpus and internal governance artifacts
+    - grounded answer generation with source attribution
+    - integration with Product 1 + Product 2 signals (gaps, trends, tiers)
+
+Non-functional targets for all products:
+  - deterministic and auditable rule paths for governance decisions
+  - adapter abstraction retained for cloud vendor flexibility
+  - testable behavior contracts and regression suites in CI
+  - secure secret handling (rotate exposed secrets before external access)
+
+================================================================================
+SECTION 10 - IMMEDIATE NEXT ACTIONS FOR NEW AGENT
+================================================================================
+
+Step 1 - Protect transfer integrity:
+  - Review local uncommitted delta and decide commit strategy.
+  - Do NOT assume GitHub main equals local workspace.
+
+Step 2 - Finalize Phase 3 local delta:
+  - Commit backend/mcp/server.py and backend/tests/test_mcp_server.py changes.
+  - Commit related dependency/session/migration updates intentionally.
+  - Push and verify CI run.
+
+Step 3 - Start Phase 4 critical path:
+  - Implement applications API and tier/compliance flow in backend/api + backend/core.
+  - Wire event collector from stub to queue + backend tier recalculation flow.
+
+Step 4 - Technical debt closure:
+  - Add strict types for MCP constructor adapters.
+  - Add explicit RDF-star literal support in GraphDB adapter annotation handling.
+  - Update /api/v1/info phase metadata to current lifecycle.
+
+================================================================================
+SECTION 11 - RUNBOOK COMMANDS
+================================================================================
+
+Start:
+  cd C:\Projects\aigov-platform
+  docker compose up --build
+
+Health:
+  Invoke-WebRequest http://localhost:8000/health
+
+Backend tests:
+  docker compose exec backend python -m pytest -q tests/test_mcp_server.py tests/test_catalog_api.py
+
+Stop:
+  docker compose down
+
+Git status snapshot:
+  git status --short
+
+================================================================================
+END OF HANDOFF DOCUMENT v5
+================================================================================

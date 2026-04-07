@@ -1,37 +1,62 @@
-// AI Governance Platform — Dashboard Shell
-// Phase 5: full dashboard implementation.
-// Stack: React, no TypeScript, CSS variables, inline styles (per handoff v2 Section 7).
-// No lucide-react or external component libraries in this project.
-
+import React from "react";
+import CatalogSearchPanel from "./components/CatalogSearchPanel";
 import InterpretationsPanel from "./components/InterpretationsPanel";
 
 function App() {
   return (
-    <div style={{ fontFamily: "system-ui, sans-serif", padding: "2rem", color: "var(--color-text, #1a1a1a)" }}>
-      <h1 style={{ fontSize: "1.5rem", fontWeight: 600 }}>AI Governance Platform</h1>
-      <p style={{ color: "#666", marginTop: "0.5rem" }}>
-        Phase 1 — infrastructure skeleton. Dashboard arrives in Phase 5.
-      </p>
-      <section style={{ marginTop: "2rem" }}>
-        <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.5rem" }}>Services</h2>
-        <ul style={{ listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          {[
-            { label: "API",        href: "http://localhost:8000/docs" },
-            { label: "Health",     href: "http://localhost:8000/health" },
-            { label: "OTEL gRPC",  href: null, note: "localhost:4317" },
-            { label: "OTEL HTTP",  href: null, note: "localhost:4318" },
-          ].map(({ label, href, note }) => (
-            <li key={label} style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-              <span style={{ fontWeight: 500, minWidth: "8rem" }}>{label}</span>
-              {href
-                ? <a href={href} style={{ color: "#0066cc" }}>{href}</a>
-                : <code style={{ fontSize: "0.875rem", background: "#f4f4f4", padding: "0.1rem 0.4rem", borderRadius: 4 }}>{note}</code>
-              }
-            </li>
-          ))}
-        </ul>
-      </section>
-      <InterpretationsPanel />
+    <div className="app">
+      <header className="header" style={{ padding: 0 }}>
+        <div className="header-top">
+          <div className="header-title">
+            <img src="/un-emblem.png" alt="UN Emblem" style={{ height: "34px", width: "auto" }} />
+            <div>
+              <h1>Responsible AI</h1>
+              <p>Demo</p>
+            </div>
+          </div>
+          <div className="header-meta">
+            <span className="chip">Enterprise Governance</span>
+          </div>
+        </div>
+
+        <div className="header-nav-row">
+          <div className="header-nav-group">
+            <span className="zone-label">Platform Endpoints</span>
+            <div className="service-inline-list">
+              <a href="http://localhost:8000/docs" className="service-inline-link">API Docs</a>
+              <a href="http://localhost:8000/health" className="service-inline-link">Health</a>
+              <span className="service-inline-code">OTEL gRPC:4317</span>
+              <span className="service-inline-code">OTEL HTTP:4318</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="main">
+        <section className="card">
+          <h2 className="card-title">System Services</h2>
+          <div className="service-grid">
+            {[
+              { label: "API", href: "http://localhost:8000/docs", value: "OpenAPI" },
+              { label: "Health", href: "http://localhost:8000/health", value: "Status" },
+              { label: "OTEL gRPC", href: null, value: "localhost:4317" },
+              { label: "OTEL HTTP", href: null, value: "localhost:4318" },
+            ].map(({ label, href, value }) => (
+              <div key={label} className="service-tile">
+                <p className="service-label">{label}</p>
+                {href ? (
+                  <a href={href} className="service-link">{value}</a>
+                ) : (
+                  <code className="inline-code">{value}</code>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <CatalogSearchPanel />
+        <InterpretationsPanel />
+      </main>
     </div>
   );
 }

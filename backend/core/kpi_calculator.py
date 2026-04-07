@@ -48,27 +48,61 @@ def _evaluate_threshold(value: float, threshold: dict) -> str:
     """
     Evaluate a metric value against a threshold definition.
 
-    Threshold format: {"operator": "lte", "value": 0.05}
-    Operators: lte, gte, lt, gt, eq
+    Handles two formats:
+
+    Simple format:
+      {"operator": "lte", "value": 0.05}
+
+    Rich format (seeded data):
+      {"compliant": ">=90", "warning": ">=75", "breach": "<75",
+       "direction": "higher_better", "unit": "%"}
+
     Returns PASS or FAIL.
     """
-    operator      = threshold.get("operator", "lte")
-    target: float = float(threshold.get("value", 0))
-
-    ops = {
-        "lte": value <= target,
-        "gte": value >= target,
-        "lt":  value <  target,
-        "gt":  value >  target,
-        "eq":  abs(value - target) < 1e-9,
-    }
-
-    result = ops.get(operator)
-    if result is None:
-        logger.warning(f"Unknown threshold operator: {operator} — defaulting to FAIL")
+    if not threshold:
         return FAIL
 
-    return PASS if result else FAIL
+    # --- Detect format ---
+    if "operator" in threshold and "value" in threshold:
+        # Simple format
+        operator      = threshold["operator"]
+        target: float = float(threshold["value"])
+        ops = {
+            "lte": value <= target,
+            "gte": value >= target,
+            "lt":  value <  target,
+            "gt":  value >  target,
+            "eq":  abs(value - target) < 1e-9,
+        }
+        result = ops.get(operator)
+        if result is None:
+            logger.warning(f"Unknown threshold operator: {operator} — defaulting to FAIL")
+            return FAIL
+        return PASS if result else FAIL
+
+    if "compliant" in threshold:
+        # Rich format — parse the compliant boundary string
+        compliant_str = str(threshold["compliant"]).strip()
+        try:
+            if compliant_str.startswith(">="):
+                return PASS if value >= float(compliant_str[2:]) else FAIL
+            elif compliant_str.startswith("<="):
+                return PASS if value <= float(compliant_str[2:]) else FAIL
+            elif compliant_str.startswith(">"):
+                return PASS if value >  float(compliant_str[1:]) else FAIL
+            elif compliant_str.startswith("<"):
+                return PASS if value <  float(compliant_str[1:]) else FAIL
+            elif compliant_str.startswith("="):
+                return PASS if abs(value - float(compliant_str[1:])) < 1e-9 else FAIL
+            else:
+                # Plain number — treat as exact match
+                return PASS if abs(value - float(compliant_str)) < 1e-9 else FAIL
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Could not parse compliant threshold '{compliant_str}': {e}")
+            return FAIL
+
+    logger.warning(f"Unrecognised threshold format: {threshold} — defaulting to FAIL")
+    return FAIL
 
 
 # ---------------------------------------------------------------------------

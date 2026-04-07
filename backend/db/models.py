@@ -108,9 +108,48 @@ class Application(Base):
     description = Column(Text)
     division_id = Column(UUID(as_uuid=False), ForeignKey("division.id"), nullable=True)
     domain      = Column(String)                # healthcare | criminal_justice | financial | …
+    ai_system_type      = Column(String, nullable=False)
+    # GEN | RAG | AUTO | DECISION | OTHER
+
+    decision_type       = Column(String, nullable=False)
+    # binding | advisory | informational
+
+    autonomy_level      = Column(String, nullable=False)
+    # human_in_the_loop | human_on_loop | human_out_of_loop
+
+    population_breadth  = Column(String, nullable=False)
+    # local | regional | national | global
+
+    affected_populations = Column(String, nullable=False)
+    # general | vulnerable | mixed
+
+    consent_scope       = Column(String, nullable=False, server_default="tier_aggregate")
+    # none | tier_aggregate | full
+
+    owner_email         = Column(String, nullable=True)
+
+    current_tier        = Column(String, nullable=True)
+    # Foundation | Common | High — denormalized cache, source of truth is tier_change_event
+
     registered_at = Column(DateTime, default=datetime.utcnow)
     tier_events   = relationship("TierChangeEvent", back_populates="application")
     metric_readings = relationship("MetricReading", back_populates="application")
+    control_assignments = relationship("ControlAssignment", backref="application")
+
+
+class ControlAssignment(Base):
+    """Explicit record of a control assigned to an application.
+    Foundation controls are auto-assigned on registration.
+    Common/Specialized controls are adopted by the Application Owner.
+    """
+    __tablename__ = "control_assignment"
+    id             = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    application_id = Column(UUID(as_uuid=False), ForeignKey("application.id"), nullable=False)
+    control_id     = Column(UUID(as_uuid=False), ForeignKey("control.id"),     nullable=False)
+    status         = Column(String, nullable=False, default="pending")
+    # adopted | pending | rejected
+    assigned_at    = Column(DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (UniqueConstraint("application_id", "control_id"),)
 
 
 class Division(Base):

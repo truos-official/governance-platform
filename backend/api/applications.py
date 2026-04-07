@@ -20,7 +20,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.models import Application, TierChangeEvent
+from db.models import Application, TierChangeEvent, ControlAssignment
 from db.session import get_db_session as get_db
 from core.tier_engine import registration_trigger, TierResult, Tier
 
@@ -172,6 +172,29 @@ def _tier_result_to_response(app_id: str, result: TierResult) -> TierResponse:
     )
 
 
+FOUNDATION_CONTROL_CODES = [
+    "RM-0", "RM-1", "RM-2", "RO-2",
+    "LC-1", "SE-1", "OM-1", "AA-1", "GL-1", "CO-1",
+]
+
+async def _assign_foundation_controls(app: Application, db: AsyncSession) -> None:
+    """Auto-assign the 10 foundation controls to every registered application."""
+    from db.models import Control
+    result = await db.execute(
+        select(Control).where(Control.code.in_(FOUNDATION_CONTROL_CODES))
+    )
+    controls = result.scalars().all()
+    for control in controls:
+        assignment = ControlAssignment(
+            id=str(uuid4()),
+            application_id=app.id,
+            control_id=control.id,
+            status="adopted",
+            assigned_at=datetime.utcnow(),
+        )
+        db.add(assignment)
+
+
 # ---------------------------------------------------------------------------
 # Routes — Phase 4.1: CRUD
 # ---------------------------------------------------------------------------
@@ -200,6 +223,7 @@ async def register_application(
     db.add(app)
     await db.flush()  # assign id before tier engine runs
 
+    await _assign_foundation_controls(app, db)
     tier_result = await registration_trigger(app, db)
 
     # Refresh to pick up current_tier written by tier engine

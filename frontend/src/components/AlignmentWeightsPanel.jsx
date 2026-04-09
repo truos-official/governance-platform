@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import PropTypes from "prop-types";
 
 const API = "http://localhost:8000/api/v1";
 
@@ -93,6 +94,17 @@ function SumIndicator({ sum }) {
     </div>
   );
 }
+
+SliderRow.propTypes = {
+  field: PropTypes.string.isRequired,
+  value: PropTypes.number.isRequired,
+  onChange: PropTypes.func.isRequired,
+  disabled: PropTypes.bool.isRequired,
+};
+
+SumIndicator.propTypes = {
+  sum: PropTypes.number.isRequired,
+};
 
 export default function AlignmentWeightsPanel() {
   const [active,   setActive]   = useState(null);

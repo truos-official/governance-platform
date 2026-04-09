@@ -1,0 +1,22 @@
+{
+  "tier.high":         "Highest governance obligations. Domain floor rule or autonomy validation may apply. Requires Common + High tier controls.",
+  "tier.common":       "Standard governance tier. Additional controls required beyond the 10 Foundation controls.",
+  "tier.foundation":   "Baseline governance tier. 10 foundation controls apply automatically to all applications.",
+  "score.alignment":   "Alignment score measures how well your governance posture matches regulatory requirements and peer adoption. 0-100. Higher is better.",
+  "score.bands":       "0-40: Low alignment. 41-70: Moderate. 71-100: Strong.",
+  "kpi.pass":          "Metric value meets the defined compliance threshold.",
+  "kpi.fail":          "Metric value does not meet the threshold. Action required.",
+  "kpi.insufficient":  "No metric data received yet. Connect your app via OTEL to populate.",
+  "floor.domain":      "Your deployment domain has a minimum tier floor — this overrides the calculated score regardless of how low it is.",
+  "floor.autonomy":    "Your app declared human_in_the_loop autonomy but observed override rate is below 0.1%. The tier engine automatically elevates to High.",
+  "peer.cohort":       "Peer group = all registered apps in the same risk tier. Benchmarks show your metrics vs peer average.",
+  "alignment.w1":      "Weight given to peer adoption rate. Higher = alignment score more sensitive to what peers are doing.",
+  "alignment.w2":      "Weight given to regulatory density. Controls referenced by more regulations carry more weight.",
+  "alignment.w3":      "Weight given to trend velocity. Fast-rising controls score higher even if current adoption is still low.",
+  "otel.production":   "Platform only ingests metrics where deployment.environment=production. All other environments are silently dropped.",
+  "control.foundation":"Foundation controls are automatically assigned to every registered application. They cannot be rejected.",
+  "control.adopted":   "You have confirmed this control is implemented in your application.",
+  "control.pending":   "This control is assigned but not yet confirmed as implemented.",
+  "mcp.tools":         "MCP tools allow AI agents to query the governance catalog programmatically. Requires governance.read OAuth scope.",
+  "consent.scope":     "Controls how your app's data is used in peer benchmarks. tier_aggregate: only aggregated tier-level data shared. full: metric-level data included in peer comparisons. none: excluded from all peer data."
+}

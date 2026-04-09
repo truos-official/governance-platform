@@ -1,0 +1,11 @@
+[
+  { "num": 1, "id": "use-case",       "label": "Use Case",              "desc": "Application onboarding — who owns this AI system, what does it do, who does it affect.", "apiEndpoints": ["POST /applications", "GET /applications/{id}"] },
+  { "num": 2, "id": "risk",           "label": "Risk Classification",   "desc": "Classify the application's intrinsic risk profile and assign a governance tier.", "apiEndpoints": ["GET /applications/{id}/tier", "GET /applications/{id}/tier/history"] },
+  { "num": 3, "id": "architecture",   "label": "Technical Architecture", "desc": "Identify the regulatory landscape and applicable governance controls.", "apiEndpoints": ["GET /catalog/controls", "GET /applications/{id}/recommendations"] },
+  { "num": 4, "id": "data-readiness", "label": "Data Readiness",        "desc": "Validate data quality and bias governance.", "apiEndpoints": ["GET /applications/{id}/compliance/controls"] },
+  { "num": 5, "id": "integration",    "label": "Data Integration",      "desc": "Confirm telemetry pipeline is live and metrics are flowing.", "apiEndpoints": ["GET /telemetry/status", "POST /telemetry/ingest"] },
+  { "num": 6, "id": "security",       "label": "Security",              "desc": "Validate security, oversight, and operational controls.", "apiEndpoints": ["GET /applications/{id}/compliance", "POST /applications/{id}/compliance"] },
+  { "num": 7, "id": "infrastructure", "label": "Infrastructure",        "desc": "Benchmark against peer applications in the same risk tier.", "apiEndpoints": ["GET /applications/{id}/benchmarks"] },
+  { "num": 8, "id": "solution",       "label": "Solution Design",       "desc": "Measure alignment with regulatory requirements and peer adoption.", "apiEndpoints": ["GET /applications/{id}/alignment"] },
+  { "num": 9, "id": "performance",    "label": "System Performance",    "desc": "Continuous live governance — tier transitions, KPI drift, recommendations.", "apiEndpoints": ["GET /applications/{id}/tier/history", "GET /applications/{id}/recommendations"] }
+]

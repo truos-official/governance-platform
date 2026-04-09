@@ -1,0 +1,10 @@
+[
+  { "id": "baseline",    "label": "Baseline",              "color": "#1e8e3e", "mandatory": true  },
+  { "id": "performance", "label": "Performance Monitoring", "color": "#1a73e8", "mandatory": false },
+  { "id": "quality",     "label": "AI Quality & Safety",    "color": "#7b61ff", "mandatory": false },
+  { "id": "oversight",   "label": "Human Oversight",        "color": "#009edb", "mandatory": false },
+  { "id": "security",    "label": "Security & Privacy",     "color": "#d93025", "mandatory": false },
+  { "id": "finops",      "label": "Cost & Infrastructure",  "color": "#e8710a", "mandatory": false },
+  { "id": "events",      "label": "Governance Events",      "color": "#f9ab00", "mandatory": false },
+  { "id": "advanced",    "label": "Advanced Governance",    "color": "#5f6368", "mandatory": false }
+]

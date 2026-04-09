@@ -1,0 +1,383 @@
+[
+  {
+    "id": "B1", "cat": "baseline", "mandatory": true, "label": "Register Application",
+    "desc": "Call POST /applications with 10 declared fields. Returns application_id, tier assignment, and required OTEL config.",
+    "tags": ["REST API"], "channel": "Registration", "metric": null, "unit": null, "threshold": null,
+    "governanceStep": "Step 1 — Use Case",
+    "appRequirement": "Implement one-time REST call at app startup or deployment pipeline.",
+    "dataFormat": "JSON payload: name, ai_system_type, deployment_domain, decision_type, autonomy_level, population_breadth, affected_populations, consent_scope, owner_email, division_id",
+    "codeHint": "POST /api/v1/applications\n{\n  \"name\": \"My AI App\",\n  \"ai_system_type\": \"RAG\",\n  \"deployment_domain\": \"healthcare\",\n  \"decision_type\": \"advisory\",\n  \"autonomy_level\": \"human_in_the_loop\",\n  \"population_breadth\": \"regional\",\n  \"affected_populations\": \"general\",\n  \"consent_scope\": \"tier_aggregate\"\n}"
+  },
+  {
+    "id": "B2", "cat": "baseline", "mandatory": true, "label": "Install OTEL SDK",
+    "desc": "Install OpenTelemetry SDK and OTLP exporter. Required for all metric channels.",
+    "tags": ["OTEL", "Production Only"], "channel": "OTEL Metrics",
+    "appRequirement": "Add OTEL packages to your app dependencies.",
+    "dataFormat": "N/A — SDK configuration only",
+    "codeHint": "pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http"
+  },
+  {
+    "id": "B3", "cat": "baseline", "mandatory": true, "label": "Set Resource Attributes",
+    "desc": "5 mandatory attributes on every OTEL export batch. Platform drops any batch missing these.",
+    "tags": ["OTEL", "All Types"], "channel": "OTEL Metrics",
+    "appRequirement": "Configure OTEL resource with all 5 attributes before app starts.",
+    "dataFormat": "service.name={app_id}, service.version={semver}, deployment.environment=production, governance.application_id={app_id}, governance.division={division}",
+    "codeHint": "resource = Resource({\n  \"service.name\": APPLICATION_ID,\n  \"service.version\": \"1.0.0\",\n  \"deployment.environment\": \"production\",\n  \"governance.application_id\": APPLICATION_ID,\n  \"governance.division\": \"your-division\"\n})"
+  },
+  {
+    "id": "B4", "cat": "baseline", "mandatory": true, "label": "Point to Collector",
+    "desc": "Configure OTLP exporter to send metrics to the governance collector endpoint.",
+    "tags": ["OTEL", "Production Only"], "channel": "OTEL Metrics",
+    "appRequirement": "Set GOVERNANCE_COLLECTOR_URL environment variable. Configure OTLP HTTP exporter.",
+    "dataFormat": "OTLP/HTTP to {GOVERNANCE_COLLECTOR_URL} — port 4318",
+    "codeHint": "exporter = OTLPMetricExporter(\n  endpoint=os.environ[\"GOVERNANCE_COLLECTOR_URL\"]\n)"
+  },
+  {
+    "id": "B5", "cat": "baseline", "mandatory": true, "label": "Production Env Flag",
+    "desc": "Platform only ingests metrics where deployment.environment=production. All other environments are silently dropped.",
+    "tags": ["OTEL", "Production Only", "All Types"], "channel": "OTEL Metrics",
+    "appRequirement": "Set deployment.environment=production in production only. Never emit production flag in dev/staging.",
+    "dataFormat": "Resource attribute: deployment.environment = \"production\"",
+    "codeHint": "# Set via environment variable\nGOVERNANCE_ENV=production  # production only"
+  },
+  {
+    "id": "B6", "cat": "baseline", "mandatory": true, "label": "Emit Core Metrics (8)",
+    "desc": "8 baseline metrics required from all apps. Minimum for KPI calculator to produce results.",
+    "tags": ["OTEL", "LLM API", "All Types"], "channel": "OTEL Metrics",
+    "metric": "ai.core.* group (8 metrics)", "unit": "Various",
+    "appRequirement": "Instrument every AI inference call. Track errors, latency, accuracy, drift, data quality, bias, disclosure.",
+    "dataFormat": "Gauge metrics emitted after each request batch",
+    "governanceStep": "Step 9 — System Performance",
+    "codeHint": "meter.create_gauge(\"ai.core.error_rate\").set(error_count/total)\nmeter.create_gauge(\"ai.model.latency_p95\").set(p95_ms)\nmeter.create_gauge(\"ai.model.accuracy\").set(accuracy_pct)\nmeter.create_gauge(\"ai.model.hallucination_rate\").set(hallucination_pct)\nmeter.create_gauge(\"ai.core.drift_score\").set(drift_0_to_1)\nmeter.create_gauge(\"ai.data.quality_score\").set(quality_0_to_1)\nmeter.create_gauge(\"ai.data.bias_score\").set(bias_0_to_1)\nmeter.create_gauge(\"ai.transparency.disclosure_rate\").set(disclosure_pct)"
+  },
+  {
+    "id": "P1", "cat": "performance", "mandatory": false, "label": "Error Rate Tracking",
+    "desc": "Track ratio of failed AI requests to total requests.",
+    "tags": ["OTEL", "All Types"], "channel": "OTEL Metrics",
+    "metric": "ai.core.error_rate", "unit": "ratio 0–1", "threshold": "≤0.01",
+    "governanceStep": "Step 9 — System Performance",
+    "appRequirement": "Wrap every AI call in try/except. Track exception count vs total calls.",
+    "dataFormat": "Gauge float 0–1. Emit after each request or on a 30s timer.",
+    "codeHint": "error_rate = exception_count / total_requests"
+  },
+  {
+    "id": "P2", "cat": "performance", "mandatory": false, "label": "Latency P95 Tracking",
+    "desc": "Track 95th percentile end-to-end latency of AI inference calls.",
+    "tags": ["OTEL", "All Types"], "channel": "OTEL Metrics",
+    "metric": "ai.model.latency_p95", "unit": "milliseconds", "threshold": "≤2000ms",
+    "governanceStep": "Step 9 — System Performance",
+    "appRequirement": "Time every AI inference call. Calculate p95 over a rolling window (e.g. last 100 requests).",
+    "dataFormat": "Gauge float in milliseconds.",
+    "codeHint": "import numpy as np\nlatencies.append(elapsed_ms)\np95 = np.percentile(latencies[-100:], 95)"
+  },
+  {
+    "id": "P3", "cat": "performance", "mandatory": false, "label": "Model Accuracy",
+    "desc": "Track model accuracy from user feedback or ground-truth evaluation.",
+    "tags": ["OTEL", "LLM API"], "channel": "OTEL Metrics",
+    "metric": "ai.model.accuracy", "unit": "percentage 0–100", "threshold": "≥90",
+    "governanceStep": "Step 9 — System Performance",
+    "appRequirement": "Implement one of: (a) user thumbs-up/down feedback system, (b) ground-truth evaluation loop, (c) LLM-as-judge scoring.",
+    "dataFormat": "Gauge float 0–100.",
+    "codeHint": "accuracy = (positive_feedback / total_feedback) * 100"
+  },
+  {
+    "id": "P4", "cat": "performance", "mandatory": false, "label": "Hallucination Rate",
+    "desc": "Track rate of hallucinated or ungrounded responses.",
+    "tags": ["OTEL", "LLM API"], "channel": "OTEL Metrics",
+    "metric": "ai.model.hallucination_rate", "unit": "percentage 0–100", "threshold": "≤5",
+    "governanceStep": "Step 9 — System Performance",
+    "appRequirement": "MUST implement hallucination detection. Options: LLM-as-judge, confidence scoring, factual grounding check against retrieved context.",
+    "dataFormat": "Gauge float 0–100. Higher = more hallucinations.",
+    "codeHint": "# LLM-as-judge approach\nverification = llm.invoke(f\"Is this answer grounded in the context? {answer} Context: {context}\")\nis_hallucination = \"no\" in verification.lower()"
+  },
+  {
+    "id": "P5", "cat": "performance", "mandatory": false, "label": "Drift Score",
+    "desc": "Track distribution shift in model inputs/outputs over time.",
+    "tags": ["OTEL", "LLM API"], "channel": "OTEL Metrics",
+    "metric": "ai.core.drift_score", "unit": "score 0–1", "threshold": "≤0.2",
+    "governanceStep": "Step 9 — System Performance",
+    "appRequirement": "MUST implement drift detection. Options: cosine distance between current embedding distribution and baseline, KS test, feature drift monitoring.",
+    "dataFormat": "Gauge float 0–1. Higher = more drift.",
+    "codeHint": "from scipy.spatial.distance import cosine\ndrift = cosine(current_embedding_mean, baseline_embedding_mean)"
+  },
+  {
+    "id": "P6", "cat": "performance", "mandatory": false, "label": "RAG Citation Coverage",
+    "desc": "Track what percentage of answer claims have a source citation.",
+    "tags": ["OTEL", "RAG", "LLM API"], "channel": "OTEL Metrics",
+    "metric": "ai.rag.citation_coverage", "unit": "ratio 0–1", "threshold": "≥0.85",
+    "governanceStep": "Step 3 — Technical Architecture",
+    "appRequirement": "RAG apps only. Track whether each answer includes source citations. Requires structured answer format with sources list.",
+    "dataFormat": "Gauge float 0–1.",
+    "codeHint": "coverage = len(answer.sources) / max(1, answer.claim_count)"
+  },
+  {
+    "id": "P7", "cat": "performance", "mandatory": false, "label": "RAG Retrieval Latency",
+    "desc": "Track P95 latency of the retrieval step separately from LLM generation.",
+    "tags": ["OTEL", "RAG", "Vector Search"], "channel": "OTEL Metrics",
+    "metric": "ai.rag.retrieval_latency_p95", "unit": "milliseconds", "threshold": "≤500ms",
+    "governanceStep": "Step 3 — Technical Architecture",
+    "appRequirement": "Instrument the retrieval call separately from the LLM call.",
+    "dataFormat": "Gauge float in milliseconds.",
+    "codeHint": "start = time.time()\nchunks = search_index.query(embedding)\nretrieval_ms = (time.time() - start) * 1000"
+  },
+  {
+    "id": "P8", "cat": "performance", "mandatory": false, "label": "Data Quality Score",
+    "desc": "Track quality of data flowing through the AI pipeline.",
+    "tags": ["OTEL", "RAG", "Vector Search"], "channel": "OTEL Metrics",
+    "metric": "ai.data.quality_score", "unit": "score 0–1", "threshold": "≥0.90",
+    "governanceStep": "Step 4 — Data Readiness",
+    "appRequirement": "MUST implement data quality scoring. Options: relevance score from vector search results, completeness check, schema validation pass rate.",
+    "dataFormat": "Gauge float 0–1.",
+    "codeHint": "quality = avg([hit.score for hit in search_results])"
+  },
+  {
+    "id": "Q1", "cat": "quality", "mandatory": false, "label": "Bias Score",
+    "desc": "Track statistical bias in model outputs.",
+    "tags": ["OTEL", "LLM API"], "channel": "OTEL Metrics",
+    "metric": "ai.data.bias_score", "unit": "score 0–1", "threshold": "≤0.10",
+    "governanceStep": "Step 4 — Data Readiness",
+    "appRequirement": "MUST implement bias detection. Options: ML-based classifier on outputs, statistical parity check, embedding-based bias test.",
+    "dataFormat": "Gauge float 0–1. Lower = less bias.",
+    "codeHint": "bias_score = bias_classifier.predict(output_batch).mean()"
+  },
+  {
+    "id": "Q2", "cat": "quality", "mandatory": false, "label": "Fairness — Demographic Parity",
+    "desc": "Track equality of positive outcome rates across demographic groups.",
+    "tags": ["OTEL", "LLM API", "High Tier"], "channel": "OTEL Metrics",
+    "metric": "ai.fairness.demographic_parity", "unit": "score 0–1", "threshold": "≥0.80",
+    "governanceStep": "Step 6 — Security",
+    "appRequirement": "⚠️ REQUIRES demographic data capture — ensure privacy controls and user consent are in place. Track outcome rates by group.",
+    "dataFormat": "Gauge float 0–1.",
+    "codeHint": "parity = min(group_rates.values()) / max(group_rates.values())"
+  },
+  {
+    "id": "Q3", "cat": "quality", "mandatory": false, "label": "Fairness — Disparate Impact",
+    "desc": "Track ratio of positive outcome rates between most and least advantaged groups.",
+    "tags": ["OTEL", "LLM API", "High Tier"], "channel": "OTEL Metrics",
+    "metric": "ai.fairness.disparate_impact", "unit": "ratio", "threshold": "≥0.80",
+    "governanceStep": "Step 6 — Security",
+    "appRequirement": "⚠️ Same demographic tracking requirement as Demographic Parity.",
+    "dataFormat": "Gauge float. Standard is ≥0.80 (80% rule).",
+    "codeHint": "disparate_impact = disadvantaged_rate / advantaged_rate"
+  },
+  {
+    "id": "Q4", "cat": "quality", "mandatory": false, "label": "Adversarial Query Detection",
+    "desc": "Track rate of detected adversarial or injection attack attempts.",
+    "tags": ["OTEL", "LLM API"], "channel": "OTEL Metrics",
+    "metric": "ai.security.adversarial_rate", "unit": "ratio 0–1", "threshold": "monitor only",
+    "governanceStep": "Step 6 — Security",
+    "appRequirement": "MUST implement adversarial/injection detection. Options: LLM classifier, regex patterns, semantic similarity to known attack patterns.",
+    "dataFormat": "Gauge float 0–1.",
+    "codeHint": "is_adversarial = injection_classifier.predict(query)\nadversarial_rate = flagged_count / total_queries"
+  },
+  {
+    "id": "H1", "cat": "oversight", "mandatory": false, "label": "Human Override Rate",
+    "desc": "Track rate at which humans correct or override AI outputs.",
+    "tags": ["OTEL", "Event Collector"], "channel": "OTEL Metrics + Events",
+    "metric": "ai.oversight.override_rate", "unit": "ratio 0–1", "threshold": "≥0.001",
+    "governanceStep": "Step 8 — Solution Design",
+    "appRequirement": "MUST implement human feedback UI. ⚠️ If override_rate < 0.001 and autonomy_level=human_in_the_loop, platform automatically elevates tier to High.",
+    "dataFormat": "Gauge float 0–1.",
+    "codeHint": "override_rate = override_count / total_responses"
+  },
+  {
+    "id": "H2", "cat": "oversight", "mandatory": false, "label": "Human Review Coverage",
+    "desc": "Track percentage of AI outputs that received human review.",
+    "tags": ["OTEL", "Event Collector"], "channel": "OTEL Metrics",
+    "metric": "ai.oversight.review_coverage", "unit": "ratio 0–1", "threshold": "configurable",
+    "governanceStep": "Step 8 — Solution Design",
+    "appRequirement": "Track how many responses were reviewed by a human vs total responses.",
+    "dataFormat": "Gauge float 0–1.",
+    "codeHint": "review_coverage = reviewed_count / total_responses"
+  },
+  {
+    "id": "H3", "cat": "oversight", "mandatory": false, "label": "Override Event Emission",
+    "desc": "Emit a governance event every time a human overrides an AI output.",
+    "tags": ["Event Collector"], "channel": "Governance Events (port 8001)",
+    "metric": "governance.oversight.override", "unit": "event", "threshold": "N/A",
+    "governanceStep": "Step 8 — Solution Design",
+    "appRequirement": "MUST implement human feedback UI. Emit event to governance-event-collector (port 8001) on every override.",
+    "dataFormat": "OTEL custom event: { query_id, original_answer, corrected_answer, user_id, timestamp }",
+    "codeHint": "# Separate exporter for events — port 8001\nevent_exporter = OTLPLogExporter(endpoint=\"http://collector:8001\")\nlogger.emit({\n  \"governance.event\": \"governance.oversight.override\",\n  \"query_id\": query_id,\n  \"user_id\": user_id\n})"
+  },
+  {
+    "id": "S1", "cat": "security", "mandatory": false, "label": "PII Detection Rate",
+    "desc": "Track rate of PII detected in user queries before LLM processing.",
+    "tags": ["PII Detection", "OTEL"], "channel": "OTEL Metrics",
+    "metric": "ai.privacy.pii_detection_rate", "unit": "ratio 0–1", "threshold": "monitor only",
+    "governanceStep": "Step 6 — Security",
+    "appRequirement": "MUST integrate a PII detection service. Any vendor: Azure Language Services, AWS Comprehend, Google DLP, Presidio (open source).",
+    "dataFormat": "Gauge float 0–1.",
+    "codeHint": "pii_detected = pii_detector.analyze(query)\npii_rate = pii_count / total_queries"
+  },
+  {
+    "id": "S2", "cat": "security", "mandatory": false, "label": "Consent Compliance Rate",
+    "desc": "Track percentage of data processing operations backed by explicit user consent.",
+    "tags": ["OTEL", "All Types"], "channel": "OTEL Metrics",
+    "metric": "ai.privacy.consent_rate", "unit": "ratio 0–1", "threshold": "≥1.0",
+    "governanceStep": "Step 4 — Data Readiness",
+    "appRequirement": "MUST implement consent tracking — record whether user consented before each request.",
+    "dataFormat": "Gauge float 0–1.",
+    "codeHint": "consent_rate = consented_requests / total_requests"
+  },
+  {
+    "id": "S3", "cat": "security", "mandatory": false, "label": "Injection Detection Rate",
+    "desc": "Track rate of detected prompt injection attempts.",
+    "tags": ["OTEL", "LLM API"], "channel": "OTEL Metrics",
+    "metric": "ai.security.injection_rate", "unit": "ratio 0–1", "threshold": "monitor only",
+    "governanceStep": "Step 6 — Security",
+    "appRequirement": "MUST implement prompt injection detection. Options: LLM classifier, regex-based patterns, semantic similarity to known injections.",
+    "dataFormat": "Gauge float 0–1.",
+    "codeHint": "is_injection = injection_classifier.predict(query)\ninjection_rate = flagged / total"
+  },
+  {
+    "id": "S4", "cat": "security", "mandatory": false, "label": "Auth Failure Rate",
+    "desc": "Track authentication failure rate to detect unauthorized access attempts.",
+    "tags": ["OTEL", "Azure"], "channel": "OTEL Metrics",
+    "metric": "ai.security.auth_failure_rate", "unit": "ratio 0–1", "threshold": "≤0.05",
+    "governanceStep": "Step 6 — Security",
+    "appRequirement": "Track failed authentication attempts vs total auth attempts.",
+    "dataFormat": "Gauge float 0–1.",
+    "codeHint": "auth_failure_rate = failed_auth / total_auth_attempts"
+  },
+  {
+    "id": "S5", "cat": "security", "mandatory": false, "label": "Transparency Disclosure Rate",
+    "desc": "Track percentage of responses that include source attribution to users.",
+    "tags": ["OTEL", "All Types"], "channel": "OTEL Metrics",
+    "metric": "ai.transparency.disclosure_rate", "unit": "percentage 0–100", "threshold": "≥100",
+    "governanceStep": "Step 1 — Use Case",
+    "appRequirement": "Track what % of responses returned to users include source attribution. If your app always includes sources, emit 100.0.",
+    "dataFormat": "Gauge float 0–100.",
+    "codeHint": "disclosure_rate = (responses_with_sources / total_responses) * 100"
+  },
+  {
+    "id": "F1", "cat": "finops", "mandatory": false, "label": "Cost Per Query",
+    "desc": "Track actual LLM API cost per request for FinOps governance.",
+    "tags": ["OTEL", "LLM API"], "channel": "OTEL Metrics",
+    "metric": "ai.finops.cost_per_query", "unit": "USD", "threshold": "≤0.01",
+    "governanceStep": "Step 7 — Infrastructure",
+    "appRequirement": "Parse cost from LLM API response. Multiply token counts by current price per token.",
+    "dataFormat": "Gauge float in USD.",
+    "codeHint": "tokens = response.usage.total_tokens\ncost = tokens * PRICE_PER_TOKEN"
+  },
+  {
+    "id": "F2", "cat": "finops", "mandatory": false, "label": "Token Usage Rate",
+    "desc": "Track token consumption rate for cost forecasting.",
+    "tags": ["OTEL", "LLM API"], "channel": "OTEL Metrics",
+    "metric": "ai.finops.token_usage_rate", "unit": "tokens/min", "threshold": "configurable",
+    "governanceStep": "Step 7 — Infrastructure",
+    "appRequirement": "Count tokens from LLM API response. Track as rolling rate per minute.",
+    "dataFormat": "Gauge float tokens/min.",
+    "codeHint": "tokens_this_minute.append(response.usage.total_tokens)\ntoken_rate = sum(tokens_this_minute) / 60"
+  },
+  {
+    "id": "F3", "cat": "finops", "mandatory": false, "label": "Compute Cost Hourly",
+    "desc": "Track infrastructure compute cost per hour.",
+    "tags": ["OTEL", "Azure"], "channel": "OTEL Metrics",
+    "metric": "ai.finops.compute_cost_hourly", "unit": "USD/hr", "threshold": "configurable",
+    "governanceStep": "Step 7 — Infrastructure",
+    "appRequirement": "Integrate with cloud provider cost API: Azure Cost Management, AWS Cost Explorer, or GCP Cloud Billing.",
+    "dataFormat": "Gauge float USD/hr.",
+    "codeHint": "# Azure example\ncost = azure_cost_client.get_current_hourly_rate(resource_id)"
+  },
+  {
+    "id": "F4", "cat": "finops", "mandatory": false, "label": "Cache Hit Rate",
+    "desc": "Track semantic cache hit rate to measure cost reduction from caching.",
+    "tags": ["OTEL", "Redis"], "channel": "OTEL Metrics",
+    "metric": "ai.finops.cache_hit_rate", "unit": "ratio 0–1", "threshold": "≥0.30",
+    "governanceStep": "Step 7 — Infrastructure",
+    "appRequirement": "Requires a caching layer in your app (Redis, Memcached, or in-memory).",
+    "dataFormat": "Gauge float 0–1.",
+    "codeHint": "cache_hit_rate = cache_hits / total_queries"
+  },
+  {
+    "id": "E1", "cat": "events", "mandatory": false, "label": "Override Event",
+    "desc": "Emit event when human overrides AI output. Primary signal for Human Oversight KPI.",
+    "tags": ["Event Collector"], "channel": "Governance Events (port 8001)",
+    "metric": "governance.oversight.override", "unit": "event",
+    "governanceStep": "Step 8 — Solution Design",
+    "appRequirement": "Human feedback UI required. Emit to event collector port 8001.",
+    "dataFormat": "OTEL log event: { query_id, original_answer, user_id, timestamp }",
+    "codeHint": "gov_logger.emit(\"governance.oversight.override\", {...})"
+  },
+  {
+    "id": "E2", "cat": "events", "mandatory": false, "label": "Appeal Submitted Event",
+    "desc": "Emit event when user submits a formal appeal of an AI decision.",
+    "tags": ["Event Collector"], "channel": "Governance Events (port 8001)",
+    "metric": "governance.appeal.submitted", "unit": "event",
+    "governanceStep": "Step 8 — Solution Design",
+    "appRequirement": "MUST implement an appeals workflow. Only required for binding/high-stakes decision apps.",
+    "dataFormat": "OTEL log event: { appeal_id, decision_id, user_id, reason, timestamp }",
+    "codeHint": "gov_logger.emit(\"governance.appeal.submitted\", {\"appeal_id\": id, ...})"
+  },
+  {
+    "id": "E3", "cat": "events", "mandatory": false, "label": "Appeal Resolved Event",
+    "desc": "Emit event when an appeal is resolved.",
+    "tags": ["Event Collector"], "channel": "Governance Events (port 8001)",
+    "metric": "governance.appeal.resolved", "unit": "event",
+    "governanceStep": "Step 8 — Solution Design",
+    "appRequirement": "Same appeals workflow as E2. Track resolution outcome.",
+    "dataFormat": "OTEL log event: { appeal_id, resolution, resolved_by, timestamp }",
+    "codeHint": "gov_logger.emit(\"governance.appeal.resolved\", {\"resolution\": \"upheld\", ...})"
+  },
+  {
+    "id": "E4", "cat": "events", "mandatory": false, "label": "Fairness Test Result Event",
+    "desc": "Emit event after running a periodic bias/fairness test.",
+    "tags": ["Event Collector"], "channel": "Governance Events (port 8001)",
+    "metric": "governance.fairness.test_result", "unit": "event",
+    "governanceStep": "Step 6 — Security",
+    "appRequirement": "MUST implement periodic fairness testing pipeline. Run at defined intervals or after model updates.",
+    "dataFormat": "OTEL log event: { test_id, test_type, score, passed, timestamp }",
+    "codeHint": "gov_logger.emit(\"governance.fairness.test_result\", {\"score\": 0.87, \"passed\": True})"
+  },
+  {
+    "id": "E5", "cat": "events", "mandatory": false, "label": "Risk Register Event",
+    "desc": "Emit event when a risk register entry is created or updated.",
+    "tags": ["Event Collector"], "channel": "Governance Events (port 8001)",
+    "metric": "governance.risk.event", "unit": "event",
+    "governanceStep": "Step 2 — Risk Classification",
+    "appRequirement": "MUST define risk events in your app. Emit on each risk trigger.",
+    "dataFormat": "OTEL log event: { risk_id, risk_type, severity, timestamp }",
+    "codeHint": "gov_logger.emit(\"governance.risk.event\", {\"severity\": \"high\", ...})"
+  },
+  {
+    "id": "A1", "cat": "advanced", "mandatory": false, "label": "Incident Reporting",
+    "desc": "Track AI system incidents — failures, anomalies, and safety events.",
+    "tags": ["OTEL", "Common+"], "channel": "OTEL Metrics",
+    "metric": "ai.incident.count + ai.incident.mean_time_to_detect", "unit": "count / minutes",
+    "threshold": "monitor + ≤60min MTTD", "governanceStep": "Step 6 — Security",
+    "appRequirement": "MUST define what constitutes an incident. Implement incident classification, logging, and timestamp tracking.",
+    "dataFormat": "Counter int (incident count) + Gauge float (MTTD in minutes).",
+    "codeHint": "incident_counter.add(1)\nmttd = (detected_at - occurred_at).seconds / 60"
+  },
+  {
+    "id": "A2", "cat": "advanced", "mandatory": false, "label": "Risk Monitoring",
+    "desc": "Track risk events and score changes over time.",
+    "tags": ["OTEL", "Common+"], "channel": "OTEL Metrics",
+    "metric": "ai.risk.event_count + ai.risk.score_delta", "unit": "count / delta",
+    "threshold": "monitor only", "governanceStep": "Step 2 — Risk Classification",
+    "appRequirement": "MUST define risk events in your app. Track your app's internal risk score if you have one.",
+    "dataFormat": "Counter int + Gauge float delta.",
+    "codeHint": "risk_counter.add(1)\nrisk_gauge.set(current_score - baseline_score)"
+  },
+  {
+    "id": "A3", "cat": "advanced", "mandatory": false, "label": "Appeals Tracking",
+    "desc": "Track appeal submission and resolution rates.",
+    "tags": ["OTEL", "High Tier"], "channel": "OTEL Metrics",
+    "metric": "ai.appeals.submission_rate + ai.appeals.resolution_time", "unit": "ratio / hours",
+    "threshold": "monitor only", "governanceStep": "Step 8 — Solution Design",
+    "appRequirement": "MUST implement appeals workflow (UI + backend). Track submission rate and time to resolution.",
+    "dataFormat": "Gauge float ratio + Gauge float hours.",
+    "codeHint": "appeals_rate = appeal_count / decisions_count\nresolution_hours = (resolved_at - submitted_at).hours"
+  },
+  {
+    "id": "A4", "cat": "advanced", "mandatory": false, "label": "MCP Agent Integration",
+    "desc": "Allow AI agents (Claude, GPT, custom) to query your governance catalog via MCP protocol.",
+    "tags": ["REST API"], "channel": "MCP Server",
+    "metric": "N/A — enables 11 MCP query tools", "unit": "N/A",
+    "governanceStep": "Step 3 — Technical Architecture",
+    "appRequirement": "No code changes to your app required. Configure your AI agent with MCP server URL and OAuth credentials.",
+    "dataFormat": "MCP protocol — agent calls governance.read-scoped tools",
+    "codeHint": "# claude_desktop_config.json\n{\n  \"mcpServers\": {\n    \"ai-governance\": {\n      \"url\": \"https://{governance-host}/mcp\",\n      \"auth\": { \"type\": \"oauth2\", \"scope\": \"governance.read\" }\n    }\n  }\n}"
+  }
+]

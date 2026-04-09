@@ -20,6 +20,7 @@ const GOV_COLOR = '#009edb';
 export default function App() {
   const { currentUser, canAdmin, selectedApp } = useApp();
   const [activeTab, setActiveTab] = useState('governance');
+  const [requestedStep, setRequestedStep] = useState(null);
   const [adminOpen, setAdminOpen] = useState(false);
 
   const govTabs = [
@@ -56,11 +57,11 @@ export default function App() {
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'governance':     return <GovernanceTab />;
+      case 'governance':     return <GovernanceTab requestedStep={requestedStep} />;
       case 'applications':   return <ApplicationsTab onNavigate={setActiveTab} />;
       case 'risks-controls': return <RisksControlsTab />;
       case 'admin':          return canAdmin ? <AdminTab /> : null;
-      default:               return <GovernanceTab />;
+      default:               return <GovernanceTab requestedStep={requestedStep} />;
     }
   };
 
@@ -130,7 +131,13 @@ export default function App() {
 
         {/* Sidebar — app selector + step nav (only on Governance tab) */}
         {activeTab === 'governance' && (
-          <AppSidebar onNavigate={setActiveTab} />
+          <AppSidebar
+            onNavigate={setActiveTab}
+            onStepNavigate={(stepNum) => {
+              setActiveTab('governance');
+              setRequestedStep({ stepNum, token: Date.now() });
+            }}
+          />
         )}
 
         {/* Main content */}
@@ -160,7 +167,7 @@ export default function App() {
 }
 
 // ── Sidebar ──────────────────────────────────────────────────
-function AppSidebar({ onNavigate }) {
+function AppSidebar({ onNavigate, onStepNavigate }) {
   const { selectedApp, selectApp } = useApp();
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -257,7 +264,7 @@ function AppSidebar({ onNavigate }) {
           9-Step Pipeline
         </div>
         {STEPS.map(step => (
-          <SidebarStep key={step.num} step={step} />
+          <SidebarStep key={step.num} step={step} onSelect={onStepNavigate} />
         ))}
       </div>
 
@@ -279,9 +286,9 @@ function AppSidebar({ onNavigate }) {
   );
 }
 
-function SidebarStep({ step }) {
+function SidebarStep({ step, onSelect }) {
   return (
-    <button className="sidebar-item" style={{ padding: '0.4rem 0.75rem', borderRadius: 0 }}>
+    <button className="sidebar-item" style={{ padding: '0.4rem 0.75rem', borderRadius: 0 }} onClick={() => onSelect(step.num)}>
       <span style={{
         width: 20, height: 20, borderRadius: '50%',
         background: 'var(--un-blue-light)', color: 'var(--un-blue)',
@@ -298,6 +305,7 @@ function SidebarStep({ step }) {
 
 AppSidebar.propTypes = {
   onNavigate: PropTypes.func.isRequired,
+  onStepNavigate: PropTypes.func.isRequired,
 };
 
 SidebarStep.propTypes = {
@@ -305,4 +313,5 @@ SidebarStep.propTypes = {
     num: PropTypes.number.isRequired,
     label: PropTypes.string.isRequired,
   }).isRequired,
+  onSelect: PropTypes.func.isRequired,
 };

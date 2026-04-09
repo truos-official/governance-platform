@@ -37,7 +37,155 @@ function fmtPercent(value) {
   return `${Math.round(value * 100)}%`;
 }
 
-export default function GovernanceTab() {
+function StepBasicPanel({ activeStep, selectedApp, snapshot, fmtDateTime, fmtNum }) {
+  if (activeStep === 1) {
+    return (
+      <div className="grid-2">
+        <div className="card card-flat">
+          <div className="section-label">Application Profile</div>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            <div><strong>Name:</strong> {selectedApp?.name || 'N/A'}</div>
+            <div><strong>Domain:</strong> {selectedApp?.domain || 'N/A'}</div>
+            <div><strong>AI System Type:</strong> {selectedApp?.ai_system_type || 'N/A'}</div>
+            <div><strong>Decision Type:</strong> {selectedApp?.decision_type || 'N/A'}</div>
+            <div><strong>Autonomy:</strong> {selectedApp?.autonomy_level || 'N/A'}</div>
+          </div>
+        </div>
+        <div className="card card-flat">
+          <div className="section-label">Ownership</div>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            <div><strong>Owner:</strong> {selectedApp?.owner_email || 'N/A'}</div>
+            <div><strong>Division:</strong> {selectedApp?.division_id || 'N/A'}</div>
+            <div><strong>Consent Scope:</strong> {selectedApp?.consent_scope || 'N/A'}</div>
+            <div><strong>Status:</strong> {selectedApp?.status || 'N/A'}</div>
+            <div><strong>Registered:</strong> {fmtDateTime(selectedApp?.registered_at)}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeStep === 2) {
+    if (!snapshot.tier) {
+      return <div style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>Tier data unavailable.</div>;
+    }
+    return (
+      <div>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+          <span className="badge badge-grey">Current Tier: {snapshot.tier.current_tier}</span>
+          <span className="badge badge-grey">Raw Score: {fmtNum(snapshot.tier.raw_score)}</span>
+          <span className="badge badge-grey">Floor Rule: {snapshot.tier.floor_rule || 'none'}</span>
+        </div>
+        <table className="table" style={{ marginBottom: 0 }}>
+          <thead>
+            <tr>
+              <th>Dimension</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(snapshot.tier.dimensions || {}).map(([k, v]) => (
+              <tr key={k}>
+                <td>{k}</td>
+                <td>{fmtNum(v)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (activeStep === 5) {
+    if (!snapshot.telemetry) {
+      return <div style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>Telemetry status unavailable.</div>;
+    }
+    return (
+      <div className="grid-2">
+        <div className="card card-flat">
+          <div className="section-label">Pipeline Health</div>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            <div><strong>Status:</strong> {snapshot.telemetry.status}</div>
+            <div><strong>Total Readings:</strong> {snapshot.telemetry.total_readings}</div>
+            <div><strong>Latest Reading:</strong> {fmtDateTime(snapshot.telemetry.latest_reading)}</div>
+            <div><strong>Production Only:</strong> {String(snapshot.telemetry.production_only)}</div>
+          </div>
+        </div>
+        <div className="card card-flat">
+          <div className="section-label">Integration Guidance</div>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            <div>Ensure OTEL exporter points to collector.</div>
+            <div>Set <code className="inline-code">deployment.environment=production</code>.</div>
+            <div>Send governance resource attributes on each batch.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeStep === 6) {
+    if (!snapshot.compliance) {
+      return <div style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>Compliance summary unavailable.</div>;
+    }
+    return (
+      <div>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+          <span className="badge badge-grey">Pass Rate: {fmtPercent(snapshot.compliance.pass_rate)}</span>
+          <span className="badge badge-green">PASS: {snapshot.compliance.pass_count}</span>
+          <span className="badge badge-red">FAIL: {snapshot.compliance.fail_count}</span>
+          <span className="badge badge-grey">NO DATA: {snapshot.compliance.insufficient_count}</span>
+        </div>
+        <table className="table" style={{ marginBottom: 0 }}>
+          <thead>
+            <tr>
+              <th>Control ID</th>
+              <th>Metric</th>
+              <th>Result</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(snapshot.compliance.controls || []).slice(0, 20).map((row, idx) => (
+              <tr key={`${row.control_id}-${idx}`}>
+                <td>{row.control_id}</td>
+                <td>{row.metric_name}</td>
+                <td>{row.result}</td>
+                <td>{fmtNum(row.value)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+StepBasicPanel.propTypes = {
+  activeStep: PropTypes.number,
+  selectedApp: PropTypes.shape({
+    name: PropTypes.string,
+    domain: PropTypes.string,
+    ai_system_type: PropTypes.string,
+    decision_type: PropTypes.string,
+    autonomy_level: PropTypes.string,
+    owner_email: PropTypes.string,
+    division_id: PropTypes.string,
+    consent_scope: PropTypes.string,
+    status: PropTypes.string,
+    registered_at: PropTypes.string,
+  }),
+  snapshot: PropTypes.shape({
+    tier: PropTypes.object,
+    compliance: PropTypes.object,
+    telemetry: PropTypes.object,
+  }).isRequired,
+  fmtDateTime: PropTypes.func.isRequired,
+  fmtNum: PropTypes.func.isRequired,
+};
+
+export default function GovernanceTab({ requestedStep }) {
   const { selectedApp } = useApp();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -208,6 +356,13 @@ export default function GovernanceTab() {
       setLoadingStepDetail(false);
     }
   }, [detailCache.alignment, detailCache.benchmarks, detailCache.complianceControls, detailCache.controlsCatalog, detailCache.history, detailCache.recommendations, selectedApp?.id]);
+
+  useEffect(() => {
+    if (!requestedStep?.stepNum) {
+      return;
+    }
+    loadStepDetail(requestedStep.stepNum);
+  }, [requestedStep, loadStepDetail]);
 
   const fmtNum = useCallback((value, digits = 3) => {
     if (typeof value !== 'number' || Number.isNaN(value)) {
@@ -428,9 +583,7 @@ export default function GovernanceTab() {
                 <td style={{ color: 'var(--text-secondary)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'center' }}>
                     <span>{row.note}</span>
-                    {(row.num === 3 || row.num === 4 || row.num === 7 || row.num === 8 || row.num === 9) && (
-                      <span className="badge badge-unblue">View</span>
-                    )}
+                    <span className="badge badge-unblue">View</span>
                   </div>
                 </td>
               </tr>
@@ -438,13 +591,21 @@ export default function GovernanceTab() {
           </tbody>
         </table>
 
-        {(activeStep === 3 || activeStep === 4 || activeStep === 7 || activeStep === 8 || activeStep === 9) && (
+        {activeStep && (
           <div style={{ borderTop: '1px solid var(--border)', padding: '1rem 1.25rem' }}>
             <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, marginBottom: '0.5rem' }}>
               {activeStep === 3
                 ? 'Step 3 Detail: Controls Architecture'
                 : activeStep === 4
                   ? 'Step 4 Detail: Data Readiness Evidence'
+                  : activeStep === 1
+                    ? 'Step 1 Detail: Use Case'
+                    : activeStep === 2
+                      ? 'Step 2 Detail: Risk Classification'
+                      : activeStep === 5
+                        ? 'Step 5 Detail: Data Integration'
+                        : activeStep === 6
+                          ? 'Step 6 Detail: Security'
                   : activeStep === 7
                     ? 'Step 7 Detail: Peer Benchmarks'
                     : activeStep === 8
@@ -462,6 +623,16 @@ export default function GovernanceTab() {
               <div className="alert alert-danger" style={{ marginBottom: 0 }}>
                 {stepDetailError}
               </div>
+            )}
+
+            {!loadingStepDetail && !stepDetailError && (
+              <StepBasicPanel
+                activeStep={activeStep}
+                selectedApp={selectedApp}
+                snapshot={snapshot}
+                fmtDateTime={fmtDateTime}
+                fmtNum={fmtNum}
+              />
             )}
 
             {!loadingStepDetail && !stepDetailError && activeStep === 3 && (
@@ -772,3 +943,10 @@ export default function GovernanceTab() {
     </div>
   );
 }
+
+GovernanceTab.propTypes = {
+  requestedStep: PropTypes.shape({
+    stepNum: PropTypes.number.isRequired,
+    token: PropTypes.number.isRequired,
+  }),
+};

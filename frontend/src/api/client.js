@@ -1,4 +1,4 @@
-const BASE = 'http://localhost:8000/api/v1';
+﻿const BASE = 'http://localhost:8000/api/v1';
 
 async function request(method, path, body) {
   const res = await fetch(`${BASE}${path}`, {
@@ -20,6 +20,12 @@ export const api = {
   registerApplication:   (body)    => request('POST',  '/applications', body),
   updateApplication:     (id, b)   => request('PATCH', `/applications/${id}`, b),
   disconnectApplication: (id)      => request('PATCH', `/applications/${id}/disconnect`),
+  getApplicationRequirements: (id, params='') => request('GET', `/applications/${id}/requirements?${params}`),
+  setApplicationRequirements: (id, requirementIds=[]) => request('PUT', `/applications/${id}/requirements`, { requirement_ids: requirementIds }),
+  getApplicationInterpretations: (id) => request('GET', `/applications/${id}/interpretations`),
+  createApplicationInterpretation: (id, body) => request('POST', `/applications/${id}/interpretations`, body),
+  patchApplicationInterpretation: (id, interpretationId, body) => request('PATCH', `/applications/${id}/interpretations/${interpretationId}`, body),
+  getApplicationDashboardStep: (id, step) => request('GET', `/applications/${id}/dashboard/${step}`),
 
   // Tier
   getTier:        (id) => request('GET', `/applications/${id}/tier`),
@@ -43,6 +49,8 @@ export const api = {
   getControl:          (id)        => request('GET', `/catalog/controls/${id}`),
   getRequirements:     (params='') => request('GET', `/catalog/requirements?${params}`),
   getRequirement:      (id)        => request('GET', `/catalog/requirements/${id}`),
+  getRegulations:      (params='') => request('GET', `/catalog/regulations?${params}`),
+  getCatalogOverviewStats: ()      => request('GET', '/catalog/overview-stats'),
   searchCatalog:       (q)         => request('GET', `/catalog/search?q=${encodeURIComponent(q)}`),
   getInterpretations:  (params='') => request('GET', `/catalog/interpretations?${params}`),
   createInterpretation:(body)      => request('POST', '/catalog/interpretations', body),
@@ -51,8 +59,9 @@ export const api = {
   getAlignmentWeights:    ()    => request('GET',  '/admin/alignment-weights'),
   setAlignmentWeights:    (b)   => request('POST', '/admin/alignment-weights', b),
   refreshPeerAggregates:  ()    => request('POST', '/admin/refresh-peer-aggregates'),
-  getCurationQueue:       ()    => request('GET',  '/curation/queue'),
+  createCurationItem:     (body) => request('POST', '/curation/queue', body),
 
   // Health
   health: () => request('GET', '/health').catch(() => ({ status: 'error' })),
 };
+

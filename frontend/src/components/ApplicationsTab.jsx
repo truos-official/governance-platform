@@ -133,7 +133,7 @@ export default function ApplicationsTab({ onNavigate }) {
                         <button className="btn btn-outline btn-xs" onClick={() => handleSelect(app)}>
                           {isSelected ? 'Selected' : 'Select'}
                         </button>
-                        <button className="btn btn-primary btn-xs" onClick={() => { handleSelect(app); onNavigate('governance'); }}>
+                        <button className="btn btn-primary btn-xs" onClick={() => { handleSelect(app); onNavigate('dashboards'); }}>
                           Open Governance
                         </button>
                         {app.status === 'active' && (
@@ -162,3 +162,4 @@ export default function ApplicationsTab({ onNavigate }) {
 ApplicationsTab.propTypes = {
   onNavigate: PropTypes.func.isRequired,
 };
+

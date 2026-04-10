@@ -1,5 +1,5 @@
 """
-SQLAlchemy ORM models — aigov-db (PostgreSQL 16, East US 2, Standard_B2s).
+SQLAlchemy ORM models - aigov-db (PostgreSQL 16, East US 2, Standard_B2s).
 Phase 2.1: run Alembic migrations to create all tables.
 Phase 2.2: enable pgvector + TimescaleDB extensions.
 
@@ -86,6 +86,19 @@ class ControlTag(Base):
     control    = relationship("Control", back_populates="tags")
 
 
+class ControlLifecycleTag(Base):
+    """Lifecycle-domain tags suggested by LLM and approved by admins."""
+    __tablename__ = "control_lifecycle_tag"
+    id               = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    control_id       = Column(UUID(as_uuid=False), ForeignKey("control.id"), nullable=False)
+    tag              = Column(String, nullable=False)
+    confidence_score = Column(Float)
+    suggested_by     = Column(String, nullable=False, default="llm")
+    reviewed_by      = Column(String)
+    approved         = Column(Boolean, nullable=False, default=False)
+    created_at       = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 # ---------------------------------------------------------------------------
 # Taxonomy
 # ---------------------------------------------------------------------------
@@ -107,7 +120,7 @@ class Application(Base):
     name        = Column(String, nullable=False)
     description = Column(Text)
     division_id = Column(UUID(as_uuid=False), ForeignKey("division.id"), nullable=True)
-    domain      = Column(String)                # healthcare | criminal_justice | financial | …
+    domain      = Column(String)                # healthcare | criminal_justice | financial | ...
     ai_system_type      = Column(String, nullable=False)
     # GEN | RAG | AUTO | DECISION | OTHER
 
@@ -132,7 +145,7 @@ class Application(Base):
     # active | suspended | disconnected
 
     current_tier        = Column(String, nullable=True)
-    # Foundation | Common | High — denormalized cache, source of truth is tier_change_event
+    # Foundation | Common | High - denormalized cache, source of truth is tier_change_event
 
     registered_at = Column(DateTime, default=datetime.utcnow)
     tier_events   = relationship("TierChangeEvent", back_populates="application")
@@ -153,6 +166,19 @@ class ControlAssignment(Base):
     # adopted | pending | rejected
     assigned_at    = Column(DateTime, default=datetime.utcnow, nullable=False)
     __table_args__ = (UniqueConstraint("application_id", "control_id"),)
+
+
+class ApplicationRequirement(Base):
+    """Explicit set of requirements marked in-scope for an application."""
+    __tablename__ = "application_requirement"
+    id             = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    application_id = Column(UUID(as_uuid=False), ForeignKey("application.id"), nullable=False)
+    requirement_id = Column(UUID(as_uuid=False), ForeignKey("requirement.id"), nullable=False)
+    selected_at    = Column(DateTime, default=datetime.utcnow, nullable=False)
+    is_default     = Column(Boolean, default=False, nullable=False)
+    added_by       = Column(String)
+    added_at       = Column(DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (UniqueConstraint("application_id", "requirement_id"),)
 
 
 class Division(Base):
@@ -192,7 +218,7 @@ class TierChangeEvent(Base):
 
 
 class TierPeerAggregate(Base):
-    """Materialised — refreshed on demand (pull model)."""
+    """Materialised - refreshed on demand (pull model)."""
     __tablename__ = "tier_peer_aggregate"
     id              = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     tier            = Column(String, nullable=False)
@@ -206,7 +232,7 @@ class TierPeerAggregate(Base):
 class AlignmentWeightConfig(Base):
     """
     Admin-configurable weights for the alignment score formula.
-    Immutable rows — never updated, only inserted.
+    Immutable rows - never updated, only inserted.
     Active config = latest row where is_active=True.
     Full history retained for audit.
     """
@@ -227,7 +253,7 @@ class AlignmentWeightConfig(Base):
 
 class MetricReading(Base):
     """
-    TimescaleDB hypertable — partitioned by collected_at.
+    TimescaleDB hypertable - partitioned by collected_at.
     Phase 2.2: convert to hypertable via Alembic migration.
     Only production-environment readings are stored (filtered at ingest).
     """
@@ -242,7 +268,7 @@ class MetricReading(Base):
 
 
 class ControlMetricDefinition(Base):
-    """KPI binding contract: links Control → metric name + threshold."""
+    """KPI binding contract: links Control -> metric name + threshold."""
     __tablename__ = "control_metric_definition"
     id          = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
     control_id  = Column(UUID(as_uuid=False), ForeignKey("control.id"), nullable=False)
@@ -250,6 +276,48 @@ class ControlMetricDefinition(Base):
     threshold   = Column(JSON, nullable=False)          # {operator, value, unit}
     is_manual   = Column(Boolean, default=False)
     control     = relationship("Control", back_populates="metric_definitions")
+
+
+class ApprovedSystemAttribute(Base):
+    """Allowlisted fields that can be used in measure formulas."""
+    __tablename__ = "approved_system_attributes"
+    id            = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    attribute_name = Column(String, unique=True, nullable=False)
+    source        = Column(
+        SAEnum("otel_metric", "application_field", "calculated", name="attribute_source"),
+        nullable=False,
+    )
+    description   = Column(Text)
+    data_type     = Column(
+        SAEnum("float", "integer", "ratio", "percentage", "boolean", "string", name="attribute_data_type"),
+        nullable=False,
+    )
+    unit          = Column(String)
+    example_value = Column(String)
+    is_active     = Column(Boolean, nullable=False, default=True)
+    added_by      = Column(String)
+    added_at      = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class MeasureFormula(Base):
+    """Formula configuration for automatic measure calculation and interpretation text."""
+    __tablename__ = "measure_formula"
+    id                           = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    control_metric_definition_id = Column(
+        UUID(as_uuid=False), ForeignKey("control_metric_definition.id"), nullable=False
+    )
+    field_picker                 = Column(String, nullable=False)
+    operator                     = Column(String, nullable=False)
+    window                       = Column(String, nullable=False)
+    aggregation                  = Column(String, nullable=False)
+    expression_preview           = Column(Text, nullable=False)
+    interpretation_template      = Column(Text, nullable=False)
+    interpretation_generated     = Column(Text)
+    interpretation_approved      = Column(Boolean, nullable=False, default=False)
+    approved                     = Column(Boolean, nullable=False, default=False)
+    approved_by                  = Column(String)
+    approved_at                  = Column(DateTime)
+    created_at                   = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class MetricSource(Base):
@@ -296,6 +364,20 @@ class RiskInterpretation(Base):
     created_at   = Column(DateTime, default=datetime.utcnow)
 
 
+class AppInterpretation(Base):
+    """Application-scoped interpretation and threshold overrides."""
+    __tablename__ = "app_interpretation"
+    id                 = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    application_id     = Column(UUID(as_uuid=False), ForeignKey("application.id"), nullable=False)
+    requirement_id     = Column(UUID(as_uuid=False), ForeignKey("requirement.id"), nullable=False)
+    control_id         = Column(UUID(as_uuid=False), ForeignKey("control.id"), nullable=False)
+    interpretation_text = Column(Text)
+    threshold_override = Column(JSON)
+    set_by             = Column(String, nullable=False)
+    set_at             = Column(DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__     = (UniqueConstraint("application_id", "requirement_id", "control_id"),)
+
+
 class InterpretationDivergenceSignal(Base):
     __tablename__ = "interpretation_divergence_signal"
     id                = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
@@ -306,13 +388,27 @@ class InterpretationDivergenceSignal(Base):
 
 class CurationQueueItem(Base):
     __tablename__ = "curation_queue_item"
-    id          = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
-    entity_type = Column(String, nullable=False)  # control | requirement | interpretation
-    entity_id   = Column(UUID(as_uuid=False), nullable=False)
-    action      = Column(String, nullable=False)
-    payload     = Column(JSON)
-    status      = Column(SAEnum("PENDING", "APPROVED", "REJECTED", name="curation_status"), default="PENDING")
-    submitted_at = Column(DateTime, default=datetime.utcnow)
+    id            = Column(UUID(as_uuid=False), primary_key=True, default=_uuid)
+    entity_type   = Column(String, nullable=False)  # legacy compatibility
+    entity_id     = Column(UUID(as_uuid=False), nullable=False)
+    action        = Column(String, nullable=False)
+    control_id    = Column(UUID(as_uuid=False))
+    item_type     = Column(String)
+    proposed      = Column(JSON)
+    justification = Column(Text)
+    payload       = Column(JSON)
+    parent_chain  = Column(JSON)
+    proposed_by   = Column(String)
+    proposed_at   = Column(DateTime, default=datetime.utcnow)
+    reviewed_by   = Column(String)
+    reviewed_at   = Column(DateTime)
+    reviewer_notes = Column(Text)
+    status        = Column(
+        SAEnum("PENDING", "APPROVED", "REJECTED", "NEEDS_REVISION", name="curation_status"),
+        default="PENDING",
+    )
+    created_at    = Column(DateTime, default=datetime.utcnow)
+    submitted_at  = Column(DateTime, default=datetime.utcnow)
 
 
 # ---------------------------------------------------------------------------
@@ -335,3 +431,4 @@ class RoleAssignment(Base):
     role        = Column(String, nullable=False)    # admin | analyst | viewer
     scope       = Column(String)                    # optional: division or application scope
     user        = relationship("User", back_populates="roles")
+

@@ -26,7 +26,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -79,7 +78,7 @@ class AlignmentResult:
 async def _get_active_weights(db: AsyncSession) -> AlignmentWeightConfig:
     result = await db.execute(
         select(AlignmentWeightConfig)
-        .where(AlignmentWeightConfig.is_active == True)
+        .where(AlignmentWeightConfig.is_active.is_(True))
         .order_by(AlignmentWeightConfig.set_at.desc())
         .limit(1)
     )

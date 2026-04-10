@@ -25,7 +25,6 @@ from db.models import (
     TierChangeEvent,
     ControlAssignment,
     TierPeerAggregate,
-    CalculatedMetric,
     Control,
     ControlRequirement,
     MetricReading,
@@ -2389,8 +2388,6 @@ async def get_dashboard_step(
         )
 
         control_codes = sorted({code for code, _ in STEP2_BASELINE_KPI_PAIRS})
-        pair_set = set(STEP2_BASELINE_KPI_PAIRS)
-
         control_rows = await db.execute(
             select(Control.id, Control.code, Control.title)
             .where(Control.code.in_(control_codes))

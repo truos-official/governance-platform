@@ -65,6 +65,40 @@ class RequirementListResponse(BaseModel):
     limit: int
 
 
+class RegulationListItem(BaseModel):
+    id: str
+    title: str
+    jurisdiction: str | None
+    requirement_count: int
+
+
+class RegulationListResponse(BaseModel):
+    items: list[RegulationListItem]
+    total: int
+    skip: int
+    limit: int
+
+
+class CatalogOverviewStatsResponse(BaseModel):
+    total_requirements: int
+    distinct_rules: int
+    rules_with_controls: int
+    rules_with_measures: int
+    total_controls: int
+    controls_with_measures: int
+    distinct_control_domains: int
+    total_control_requirement_links: int
+    total_measure_definitions: int
+    distinct_measure_metrics: int
+    peer_benchmarked_metrics: int
+    risk_compliance_controls: int
+    risk_compliance_measurable_controls: int
+    risk_compliance_domains_present: int
+    total_regulations: int
+    total_jurisdictions: int
+    total_interpretations: int
+
+
 class SearchResultItem(BaseModel):
     id: str
     code: str | None = None
@@ -439,6 +473,159 @@ async def get_requirement(
     if row is None:
         raise HTTPException(status_code=404, detail="Requirement not found")
     return RequirementListItem(**row)
+
+
+@router.get("/catalog/regulations", response_model=RegulationListResponse)
+async def list_regulations(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=500),
+    session: AsyncSession = Depends(get_db_session),
+) -> RegulationListResponse:
+    count_result = await session.execute(
+        text(
+            """
+            SELECT COUNT(*) AS total
+            FROM regulation reg
+            """
+        )
+    )
+    total = int(count_result.scalar_one())
+
+    rows_result = await session.execute(
+        text(
+            """
+            SELECT
+                reg.id::text AS id,
+                reg.title AS title,
+                reg.jurisdiction AS jurisdiction,
+                COUNT(r.id) AS requirement_count
+            FROM regulation reg
+            LEFT JOIN requirement r ON r.regulation_id = reg.id
+            GROUP BY reg.id, reg.title, reg.jurisdiction
+            ORDER BY reg.title
+            OFFSET :skip
+            LIMIT :limit
+            """
+        ),
+        {"skip": skip, "limit": limit},
+    )
+
+    items = [
+        RegulationListItem(
+            id=row["id"],
+            title=row["title"],
+            jurisdiction=row.get("jurisdiction"),
+            requirement_count=int(row.get("requirement_count") or 0),
+        )
+        for row in rows_result.mappings().all()
+    ]
+    return RegulationListResponse(items=items, total=total, skip=skip, limit=limit)
+
+
+@router.get("/catalog/overview-stats", response_model=CatalogOverviewStatsResponse)
+async def catalog_overview_stats(
+    session: AsyncSession = Depends(get_db_session),
+) -> CatalogOverviewStatsResponse:
+    result = await session.execute(
+        text(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM requirement) AS total_requirements,
+                (
+                    SELECT COUNT(DISTINCT LOWER(TRIM(COALESCE(NULLIF(r.title, ''), r.code))))
+                    FROM requirement r
+                ) AS distinct_rules,
+                (
+                    SELECT COUNT(DISTINCT cr.requirement_id)
+                    FROM control_requirement cr
+                ) AS rules_with_controls,
+                (
+                    SELECT COUNT(DISTINCT cr.requirement_id)
+                    FROM control_requirement cr
+                    JOIN control_metric_definition cmd ON cmd.control_id = cr.control_id
+                ) AS rules_with_measures,
+                (SELECT COUNT(*) FROM control) AS total_controls,
+                (
+                    SELECT COUNT(DISTINCT cmd.control_id)
+                    FROM control_metric_definition cmd
+                ) AS controls_with_measures,
+                (
+                    SELECT COUNT(DISTINCT LOWER(TRIM(COALESCE(NULLIF(c.domain, ''), 'unassigned'))))
+                    FROM control c
+                ) AS distinct_control_domains,
+                (SELECT COUNT(*) FROM control_requirement) AS total_control_requirement_links,
+                (SELECT COUNT(*) FROM control_metric_definition) AS total_measure_definitions,
+                (SELECT COUNT(DISTINCT cmd.metric_name) FROM control_metric_definition cmd) AS distinct_measure_metrics,
+                (
+                    SELECT COUNT(DISTINCT tpa.metric_name)
+                    FROM tier_peer_aggregate tpa
+                    WHERE COALESCE(tpa.peer_count, 0) >= 1
+                ) AS peer_benchmarked_metrics,
+                (
+                    SELECT COUNT(*)
+                    FROM control c
+                    WHERE LOWER(TRIM(COALESCE(c.domain, ''))) IN (
+                        'risk management',
+                        'regulatory',
+                        'governance',
+                        'audit',
+                        'privacy'
+                    )
+                ) AS risk_compliance_controls,
+                (
+                    SELECT COUNT(DISTINCT c.id)
+                    FROM control c
+                    JOIN control_metric_definition cmd ON cmd.control_id = c.id
+                    WHERE LOWER(TRIM(COALESCE(c.domain, ''))) IN (
+                        'risk management',
+                        'regulatory',
+                        'governance',
+                        'audit',
+                        'privacy'
+                    )
+                ) AS risk_compliance_measurable_controls,
+                (
+                    SELECT COUNT(DISTINCT LOWER(TRIM(COALESCE(c.domain, ''))))
+                    FROM control c
+                    WHERE LOWER(TRIM(COALESCE(c.domain, ''))) IN (
+                        'risk management',
+                        'regulatory',
+                        'governance',
+                        'audit',
+                        'privacy'
+                    )
+                ) AS risk_compliance_domains_present,
+                (SELECT COUNT(*) FROM regulation) AS total_regulations,
+                (
+                    SELECT COUNT(DISTINCT LOWER(TRIM(reg.jurisdiction)))
+                    FROM regulation reg
+                    WHERE reg.jurisdiction IS NOT NULL
+                      AND TRIM(reg.jurisdiction) <> ''
+                ) AS total_jurisdictions,
+                (SELECT COUNT(*) FROM risk_interpretation) AS total_interpretations
+            """
+        )
+    )
+    row = result.mappings().first() or {}
+    return CatalogOverviewStatsResponse(
+        total_requirements=int(row.get("total_requirements") or 0),
+        distinct_rules=int(row.get("distinct_rules") or 0),
+        rules_with_controls=int(row.get("rules_with_controls") or 0),
+        rules_with_measures=int(row.get("rules_with_measures") or 0),
+        total_controls=int(row.get("total_controls") or 0),
+        controls_with_measures=int(row.get("controls_with_measures") or 0),
+        distinct_control_domains=int(row.get("distinct_control_domains") or 0),
+        total_control_requirement_links=int(row.get("total_control_requirement_links") or 0),
+        total_measure_definitions=int(row.get("total_measure_definitions") or 0),
+        distinct_measure_metrics=int(row.get("distinct_measure_metrics") or 0),
+        peer_benchmarked_metrics=int(row.get("peer_benchmarked_metrics") or 0),
+        risk_compliance_controls=int(row.get("risk_compliance_controls") or 0),
+        risk_compliance_measurable_controls=int(row.get("risk_compliance_measurable_controls") or 0),
+        risk_compliance_domains_present=int(row.get("risk_compliance_domains_present") or 0),
+        total_regulations=int(row.get("total_regulations") or 0),
+        total_jurisdictions=int(row.get("total_jurisdictions") or 0),
+        total_interpretations=int(row.get("total_interpretations") or 0),
+    )
 
 
 @router.get(

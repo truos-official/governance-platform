@@ -86,6 +86,16 @@ export async function getRequirementDetail(requirementId) {
   const response = await catalogApi.get(`/catalog/requirements/${requirementId}`);
   return response.data;
 }
+export async function listRequirements({
+  controlId,
+  skip = 0,
+  limit = 200,
+} = {}) {
+  const params = { skip, limit };
+  if (controlId) params.control_id = controlId;
+  const response = await catalogApi.get("/catalog/requirements", { params });
+  return response.data;
+}
 
 export async function getCatalogItemDetail(item) {
   const itemType = item?.type;
@@ -97,3 +107,4 @@ export async function getCatalogItemDetail(item) {
   if (itemType === "requirement") return getRequirementDetail(itemId);
   throw new Error(`Unsupported item type: ${itemType}`);
 }
+

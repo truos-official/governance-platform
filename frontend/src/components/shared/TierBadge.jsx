@@ -1,27 +1,43 @@
 import PropTypes from 'prop-types';
 
+const RISK_TIER_MAP = {
+  High: 'High',
+  Common: 'Medium',
+  Foundation: 'Low',
+  Medium: 'Medium',
+  Low: 'Low',
+};
+
+export function normalizeRiskTier(tier) {
+  if (!tier) {
+    return null;
+  }
+  return RISK_TIER_MAP[tier] || tier;
+}
+
 const TIER_CONFIG = {
   High: {
     cls: 'tier-badge-high',
     label: 'High Risk',
     tooltip: 'Highest governance obligations. Domain floor rule or autonomy validation may apply.',
   },
-  Common: {
+  Medium: {
     cls: 'tier-badge-common',
-    label: 'Common',
-    tooltip: 'Standard governance tier. Additional controls required beyond Foundation.',
+    label: 'Medium Risk',
+    tooltip: 'Standard governance tier. Additional controls required beyond baseline.',
   },
-  Foundation: {
+  Low: {
     cls: 'tier-badge-foundation',
-    label: 'Foundation',
-    tooltip: 'Baseline governance tier. 10 foundation controls apply to all applications.',
+    label: 'Low Risk',
+    tooltip: 'Baseline governance tier. Core controls apply to all applications.',
   },
 };
 
 export function TierBadge({ tier }) {
-  const cfg = TIER_CONFIG[tier] || {
+  const normalized = normalizeRiskTier(tier);
+  const cfg = TIER_CONFIG[normalized] || {
     cls: 'badge-grey',
-    label: tier || 'Unknown',
+    label: normalized || tier || 'Unknown',
     tooltip: 'Tier not yet assigned.',
   };
 

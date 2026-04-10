@@ -129,7 +129,7 @@ export default function AlignmentWeightsPanel() {
         trend_velocity:     data.active.trend_velocity,
       });
     } catch (e) {
-      setError("Failed to load weights.");
+      setError("Failed to load risk category settings.");
     }
   }, []);
 
@@ -185,9 +185,9 @@ export default function AlignmentWeightsPanel() {
     <div className="card">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1.2rem" }}>
         <div>
-          <h2 className="card-title" style={{ marginBottom: "0.2rem" }}>Alignment Score Weights</h2>
+          <h2 className="card-title" style={{ marginBottom: "0.2rem" }}>Risk Category Settings</h2>
           <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", margin: 0 }}>
-            Admin only · Changes are immutable and audited
+            Admin only � Changes are immutable and audited
           </p>
         </div>
         {!editing && (
@@ -196,7 +196,7 @@ export default function AlignmentWeightsPanel() {
             className="chip"
             style={{ cursor: "pointer", border: "none", background: "var(--accent)", color: "white", padding: "0.35rem 0.9rem" }}
           >
-            Edit Weights
+            Edit Settings
           </button>
         )}
       </div>
@@ -254,7 +254,7 @@ export default function AlignmentWeightsPanel() {
       )}
 
       {error   && <p style={{ color: "#dc2626", fontSize: "0.85rem", marginBottom: "0.7rem" }}>{error}</p>}
-      {success && <p style={{ color: "#16a34a", fontSize: "0.85rem", marginBottom: "0.7rem" }}>✓ Weights saved successfully.</p>}
+      {success && <p style={{ color: "#16a34a", fontSize: "0.85rem", marginBottom: "0.7rem" }}>✓ Settings saved successfully.</p>}
 
       {editing && (
         <div style={{ display: "flex", gap: "0.7rem", marginBottom: "1.5rem" }}>
@@ -268,7 +268,7 @@ export default function AlignmentWeightsPanel() {
               fontWeight: 600, cursor: saving ? "wait" : "pointer", fontSize: "0.88rem",
             }}
           >
-            {saving ? "Saving…" : "Save Weights"}
+            {saving ? "Saving…" : "Save Settings"}
           </button>
           <button
             onClick={() => { setEditing(false); load(); }}

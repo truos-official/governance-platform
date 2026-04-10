@@ -1,0 +1,698 @@
+0001: UNITED NATIONS — OICT
+0002: UN AI Governance Platform
+0003: Complete System Specification & Implementation Roadmap
+0004: Session Handoff Document — Pick up and build from here
+0005: Version: Session 2 Final  |  March 2026  |  Architecture confirmed, ready to build
+0006: Owner: Tristan Gitman, Head of AI Governance, UN Secretariat OICT
+0007: Contact: tristan.gitman@un.org  |  GitHub: truos-official  |  Azure: info@truos.io
+0008: HOW TO USE THIS DOCUMENT
+0009: This document is the complete system specification and session handoff for the UN AI Governance Platform. It contains everything needed to continue building in a new session without losing context.
+0010: Architecture is fully confirmed — all 13 components locked. Implementation roadmap is defined across 7 phases, 19 weeks.
+0011: Start a new session by sharing this document and saying: 'Continue building the UN AI Governance Platform from Phase [N]. Architecture is locked — do not redesign, only build.'
+0012: Architecture Status
+0013: Component
+0014: Status
+0015: 1 — Platform Identity (3 products, 1 platform)
+0016: ? Locked
+0017: 2 — Tech Stack (Azure native, vendor abstraction)
+0018: ? Locked
+0019: 3 — Governance Telemetry Layer (separate service, 4 sub-components)
+0020: ? Locked
+0021: 4 — Data Architecture (PostgreSQL + GraphDB + Azure AI Search)
+0022: ? Locked
+0023: 5 — Product 1: Regulatory Intelligence
+0024: ? Locked
+0025: 6 — Product 2: Governance Monitoring
+0026: ? Locked
+0027: 7 — Product 3: Native RAG Application (clean build)
+0028: ? Locked
+0029: 8 — User Roles and Permissions (4 roles)
+0030: ? Locked
+0031: 9 — Hierarchy Enforcement (recommendations, no mandates)
+0032: ? Locked
+0033: 10 — Governance Dashboard (5 panels, 3 role views)
+0034: ? Locked
+0035: 11 — API and Integration Contracts (OpenAPI, OTEL, MCP)
+0036: ? Locked
+0037: 12 — Security and Privacy
+0038: ? Locked
+0039: 13 — Deployment Architecture (Azure, personal account)
+0040: ? Locked
+0041: Component 1 — Platform Identity
+0042: Item
+0043: Detail
+0044: Platform name
+0045: UN AI Governance Platform
+0046: Product 1
+0047: Regulatory Intelligence — manages regulatory catalog, requirements, controls, taxonomy. MCP server exposes catalog.
+0048: Product 2
+0049: Governance Monitoring — connected AI applications emit OTEL metrics. Platform ingests, calculates compliance evidence automatically.
+0050: Product 3
+0051: Native RAG Application — governance intelligence assistant querying Product 1 catalog. Reference implementation and live demo of a connected application.
+0052: Binding contract
+0053: KPI definition schema shared between Product 1 and Product 2. Product 1 defines what to measure. Product 2 measures it live.
+0054: Deployment target
+0055: Azure (personal account now, UN enterprise when available). Enterprise-grade from day one. Migration = config change only.
+0056: Existing application
+0057: governance-demo-agentic (ai.truos.io) is reference for domain knowledge only. Product 3 is a clean enterprise rebuild.
+0058: Component 2 — Tech Stack
+0059: Layer
+0060: Local / Personal Azure
+0061: Enterprise (future UN)
+0062: Graph database
+0063: GraphDB Free on Azure B2s VM
+0064: GraphDB Enterprise — Azure Marketplace
+0065: Relational + vector + time-series
+0066: Azure Database for PostgreSQL Flexible Server (Burstable B2s)
+0067: Same — larger tier
+0068: Search
+0069: Azure AI Search Basic
+0070: Azure AI Search Standard
+0071: LLM
+0072: Azure OpenAI GPT-4o
+0073: Same
+0074: Orchestration
+0075: LangChain + LangSmith tracing
+0076: Same
+0077: Cache
+0078: Azure Cache for Redis Basic
+0079: Same — larger tier
+0080: Queue
+0081: Azure Service Bus Basic
+0082: Same
+0083: Telemetry
+0084: OpenTelemetry (universal)
+0085: Same — no adapter needed
+0086: API
+0087: FastAPI Python 3.11
+0088: Same
+0089: Frontend
+0090: React, inline styles, CSS variables
+0091: Same
+0092: Auth
+0093: Azure Entra ID
+0094: UN Azure Entra ID tenant
+0095: Containers
+0096: Azure Container Apps
+0097: Same — different subscription
+0098: CI/CD
+0099: GitHub Actions
+0100: Same
+0101: VENDOR ABSTRACTION PRINCIPLE
+0102: Every external dependency sits behind an adapter ABC in Python.
+0103: Config file selects which adapter loads at startup.
+0104: Swapping vendors = writing one new file in adapters/{layer}/
+0105: Adapter locations: adapters/search/ | adapters/llm/ | adapters/graph/ | adapters/queue/ | adapters/telemetry/
+0106: OpenTelemetry is the one exception — already the open standard, no adapter needed.
+0107: Lock-in is real but contained to adapter files. Core business logic is entirely vendor-neutral.
+0108: TELEMETRY PRINCIPLE — CRITICAL
+0109: AI applications are instrumented, not aware.
+0110: Connected applications do not know they are being governed.
+0111: They do not calculate KPIs. They do not call the governance layer for analytics.
+0112: They simply run and emit standard OTEL telemetry as a side effect of normal operation.
+0113: The governance layer is the active party — it pulls, calculates, and interprets everything.
+0114: Component 3 — Governance Telemetry Layer
+0115: Separate service. Four sub-components. All vendor-specific code behind adapter ABCs.
+0116: 3a — OTEL Collector
+0117: Receives all raw OTEL spans and metrics from connected applications. Standard OpenTelemetry protocol. No proprietary SDK required from connected apps.
+0118: 3b — Source Adapters
+0119: Adapter
+0120: What it pulls
+0121: LangSmith
+0122: LLM traces, accuracy, hallucination rate, drift score, citation coverage
+0123: Azure Monitor
+0124: Infrastructure metrics, uptime, alert response time, log coverage
+0125: Azure Defender
+0126: Vulnerability counts, DLP incidents
+0127: Azure Entra
+0128: MFA coverage, failed authentication rate, privileged access review
+0129: Azure Key Vault
+0130: Encryption coverage across datasets
+0131: Redis
+0132: User feedback events, consent rate, DSR response time, override events
+0133: Azure Cost
+0134: Compute cost, token usage
+0135: 3c — Governance Event Collector
+0136: Dedicated receiver for governance-specific signals not derivable from standard OTEL. Connected applications emit these as standard OTEL custom events — no proprietary SDK.
+0137: Event
+0138: OTEL custom event key
+0139: Human override of AI output
+0140: governance.oversight.override
+0141: Appeal submitted
+0142: governance.appeal.submitted
+0143: Appeal resolved
+0144: governance.appeal.resolved
+0145: Bias test result
+0146: governance.fairness.test_result
+0147: Risk register event
+0148: governance.risk.event
+0149: 3d — KPI Calculator
+0150: Computes control metric values from raw signals on demand. Pull model — triggered when dashboard loads. Never pre-computed on a schedule for MVP. Applies formulas, thresholds, delta calculations, peer comparisons.
+0151: Component 4 — Data Architecture
+0152: Three databases. Each owns a distinct concern. They do not duplicate each other.
+0153: 4a — PostgreSQL + pgvector + TimescaleDB
+0154: Owns: content and state — what things are and what values they have.
+0155: Table group
+0156: What it stores
+0157: Regulatory catalog
+0158: regulation, requirement, control, taxonomy_term
+0159: Governance state
+0160: application, control_assignment, interpretation
+0161: Risk definitions
+0162: risk_definition, canonical_risk_concept
+0163: Measurement
+0164: metric_reading (TimescaleDB hypertable), calculated_metric
+0165: Calculation logic
+0166: control_metric_definition, metric_source, control_calculation_proposal
+0167: Curation queue
+0168: curation_queue_item
+0169: Users and roles
+0170: user, division, role_assignment
+0171: Peer aggregates
+0172: tier_peer_aggregate (materialised, refreshed on demand)
+0173: Tier change events
+0174: tier_change_event (immutable audit records)
+0175: pgvector: stores embeddings for control descriptions and requirement text. Used by control mapper similarity search.
+0176: TimescaleDB: metric_reading is a hypertable partitioned by collected_at. Stores all KPI values over time. Enables delta calculations and trend analysis.
+0177: 4b — GraphDB (RDF/SPARQL)
+0178: Owns: relationships — how things connect.
+0179: Node types
+0180: Relationship types
+0181: Regulation, Requirement, Control
+0182: IMPLIES, OVERLAPS, SUPERSEDES, CONFLICTS_WITH
+0183: Application, TaxonomyTerm
+0184: HAS_REQUIREMENT, SATISFIED_BY, PARTIALLY_SATISFIED_BY
+0185: DEPENDS_ON, ADOPTS, SCOPED_TO
+0186: EQUIVALENT_TO, SUBTYPE_OF, MAPS_TO
+0187: RDF-star used for relationship provenance — every relationship carries metadata about who asserted it, when, and with what confidence. SPARQL queries power control-to-requirement traversal, requirement overlap detection, interpretation lineage, and cross-regulation conflict detection.
+0188: 4c — Azure AI Search
+0189: Owns: discovery — finding things by meaning.
+0190: Three entity types indexed: controls, requirements, regulations.
+0191: Boost signals per document: peer adoption rate, mandatory weight, recency score.
+0192: Hybrid search: BM25 keyword + vector semantic + Azure semantic ranker in one query.
+0193: Facets: jurisdiction, source, domain, tier, actor type, AI system type.
+0194: Integrated vectorisation via Azure OpenAI text-embedding-3-small — no separate embedding pipeline.
+0195: Component 5 — Product 1: Regulatory Intelligence
+0196: 5a — Ingestion (Search-First)
+0197: KEY PRINCIPLE
+0198: Catalog starts pre-populated with 140 requirements and 59 controls.
+0199: Before any user can add content, search runs first.
+0200: Search-first ensures the catalog grows through interpretation and enrichment before addition.
+0201: Duplication is structurally prevented, not just warned against.
+0202: Path
+0203: When
+0204: Flow
+0205: A — Add interpretation
+0206: Existing requirement found in search
+0207: User selects existing requirement ? creates Layer 3 interpretation ? own control assignment + rationale ? immediate, scoped to division or application
+0208: B — Add new requirement
+0209: No suitable match in search
+0210: Paste raw text ? GPT-4o extracts obligations ? similarity confirms novelty ? user confirms structure ? control mapping proposed ? enters curation queue ? Secretariat Admin approves
+0211: C — Add new control
+0212: Control not in existing 59
+0213: Expert Contributor proposes ? Reviewer validates ? Secretariat Admin approves ? enters catalog
+0214: 5b — Automated Regulatory Feed
+0215: Sources: Federal Register API (daily), Congress.gov API (weekly)
+0216: Pipeline: fetch ? chunk by section ? GPT-4o extracts obligation sentences ? vector similarity maps to candidate controls ? deposits into curation queue with status pending_admin_review
+0217: Admin approves or rejects each item before it enters the live catalog
+0218: 5c — Control Catalog
+0219: 59 controls across 13 domains
+0220: Three tiers: Foundation (always recommended), Common (recommended by risk tier), Specialized (recommended by AI system type and domain)
+0221: Three measurement modes: system_calculated, hybrid, manual
+0222: Metric addition rules: system-calculated metrics locked at build time. Enterprise manual metrics added by Secretariat Admin only. Division manual metrics added by Division Admin only — reusable within their division. Application Owners cannot create metrics — they only enter values.
+0223: 5d — MCP Server
+0224: Catalog tools (5): search_catalog, search_controls, get_control_detail, search_requirements, get_requirement_interpretations
+0225: Peer intelligence tools (6): get_application_tier, get_peer_recommendations, get_peer_benchmark, get_tier_trends, get_compliance_summary, get_telemetry_status
+0226: Read-only. No writes via MCP. Required scope: governance.read
+0227: 5e — Interpretation Versioning
+0228: Layer
+0229: Owner
+0230: Rules
+0231: Layer 1 — Source
+0232: Regulator
+0233: Verbatim regulatory text. Immutable. Never modified.
+0234: Layer 2 — System
+0235: Platform (LLM-proposed, expert-reviewed)
+0236: Locked after expert approval. Platform default.
+0237: Layer 3 — User
+0238: Division or Application Owner
+0239: Versioned tree. Org-owned. Full audit trail. Never deleted.
+0240: Most specific interpretation always governs compliance measurement. Division-scoped Layer 3 overrides Layer 2 for applications in that division. Application-scoped Layer 3 overrides division default for that application only. All versions remain visible in the tree.
+0241: Divergence signals — when a user assigns a different control than the system interpretation — feed back into the search ranking model as training signal.
+0242: Component 6 — Product 2: Governance Monitoring
+0243: 6a — Application Registration
+0244: Single REST call before first deployment. Triggers immediate tier score calculation. Returns: assigned tier, recommended control set, OTEL configuration, missing mandatory metrics.
+0245: 6b — Risk Tier Engine
+0246: Automatic. No human override at any level.
+0247: Dimension
+0248: Weight
+0249: Impact magnitude (deployment domain)
+0250: 30%
+0251: Reversibility (decision type)
+0252: 25%
+0253: Autonomy level (human oversight)
+0254: 20%
+0255: Population breadth
+0256: 10%
+0257: Vulnerability of affected populations
+0258: 10%
+0259: Likelihood (OTEL-fed: error rate, hallucination, drift)
+0260: 5%
+0261: Tier thresholds: High =65, Common =35, Foundation <35
+0262: Domain floor rule: asylum, criminal justice, medical diagnosis, biometric ID floor at 65 regardless of calculated score
+0263: Tier transitions: immediate, no approval required. Audit event emitted. Secretariat Admin notified informational only.
+0264: OTEL validation: if declared autonomy is human_in_the_loop but observed override rate <0.1%, autonomy risk score automatically elevated
+0265: 6c — Alignment Score Engine
+0266: Central value signal. Answers: how well does your governance posture align with where the market is?
+0267: ALIGNMENT SCORE FORMULA
+0268: control_weight = (peer_adoption_rate × 0.50) + (regulatory_density × 0.30) + (trend_velocity × 0.20)
+0269: alignment_score = S(adopted_controls × control_weight) / S(applicable_controls × control_weight) × 100
+0270: Applicable controls scoped to application's risk tier, AI system type, and deployment domain.
+0271: Score is 0–100, directional, no pass/fail threshold.
+0272: Commentary folded into score — diagnoses adoption gap, regulatory exposure gap, trend gap.
+0273: 6d — Compliance Evidence Engine
+0274: Mode
+0275: How
+0276: Confidence threshold
+0277: system_calculated
+0278: KPI Calculator applies formula, compares to thresholds
+0279: =0.80 auto-calculate | 0.60-0.79 require confirmation | 0.35-0.59 proxy/estimated | <0.35 manual
+0280: hybrid
+0281: System provides evidence, user confirms or supplements
+0282: Same confidence model
+0283: manual
+0284: Last entered value retrieved, delta computed, peer comparison applied
+0285: N/A — human-entered
+0286: 6e — Peer Intelligence Engine
+0287: All peer data aggregated server-side. No individual application data ever exposed.
+0288: Minimum cohort N=3 before peer figures shown.
+0289: Peer group scoped by risk tier.
+0290: Outputs: peer benchmark (metric-by-metric median, p25, p75, percentile rank, delta), peer recommendations (controls ranked by adoption rate), tier trends (quarter-over-quarter adoption velocity), systemic gap analysis (Secretariat Admin only)
+0291: Component 7 — Product 3: Native RAG Application
+0292: IMPORTANT — CLEAN BUILD
+0293: Product 3 is a new build. The existing governance-demo-agentic is reference for domain knowledge and UX patterns only — not for code.
+0294: Built enterprise-grade from day one on personal Azure account.
+0295: No migration from existing application.
+0296: 7a — What it is
+0297: A governance intelligence assistant. Answers natural language questions about AI governance by retrieving from Product 1's regulatory catalog via Azure AI Search and MCP.
+0298: Example queries: 'What does the EU AI Act require from deployers of high-risk AI?' | 'Which controls should I prioritise for a RAG application in healthcare?' | 'What are my obligations under Colorado law for algorithmic discrimination?'
+0299: 7b — Tech Stack
+0300: Layer
+0301: Technology
+0302: Frontend
+0303: React, inline styles, CSS variables, Azure SWA
+0304: Backend
+0305: FastAPI, Python 3.11, Azure Container Apps
+0306: LLM
+0307: Azure OpenAI GPT-4o
+0308: Orchestration
+0309: LangChain + LangSmith
+0310: RAG index
+0311: Azure AI Search — Product 1 regulatory catalog
+0312: Auth
+0313: Azure Entra ID
+0314: Telemetry
+0315: OpenTelemetry — emits to governance telemetry layer
+0316: Tracing
+0317: LangSmith — observed by governance LangSmith adapter
+0318: 7c — Knowledge domain
+0319: PLATFORM PRINCIPLE: SINGLE SOURCE OF REGULATORY TRUTH
+0320: The governance platform's regulatory catalog is the authoritative knowledge base for ALL connected AI applications.
+0321: Every AI application governed by this platform retrieves regulatory knowledge exclusively from the platform catalog.
+0322: No application maintains its own copy of regulatory content.
+0323: When a regulation is updated — it happens once in the catalog. All connected applications immediately reflect the change.
+0324: If a compliance rule is not in the catalog, it must go through the interpretation or curation queue process before any application can reference it.
+0325: 7d — Integration touchpoints
+0326: Integration point
+0327: How
+0328: Retrieval
+0329: Queries Product 1 catalog via Azure AI Search
+0330: Catalog discovery
+0331: Calls MCP search_catalog tool for governance queries
+0332: Telemetry
+0333: Emits OTEL metrics per metric contract
+0334: LLM observability
+0335: LangSmith traces observed by governance telemetry layer
+0336: Governance events
+0337: Emits governance.oversight.override when user corrects answer
+0338: Tier
+0339: Automatically assigned by tier engine on registration
+0340: Alignment score
+0341: Computed by Product 2 from its telemetry
+0342: Component 8 — User Roles and Permissions
+0343: Role
+0344: Scope
+0345: Can add
+0346: Can approve
+0347: Secretariat Admin
+0348: Entire platform
+0349: Enterprise manual metrics, new requirements (curation queue), new controls
+0350: Everything — final approver
+0351: Division Admin
+0352: Their division only
+0353: Division manual metrics (reusable within division), division-scoped interpretations
+0354: Division-level content only
+0355: Application Owner
+0356: Their application only
+0357: Application-scoped interpretations, manual control values
+0358: Nothing — selects only
+0359: Expert Contributor
+0360: Propose only
+0361: Propose new requirements and controls (enters curation queue)
+0362: Nothing — cannot approve own proposals
+0363: Reviewer
+0364: Validate proposals
+0365: Nothing new
+0366: Validates Expert Contributor proposals before Secretariat Admin review
+0367: SEARCH ACCESS
+0368: All roles have full read access to the entire catalog.
+0369: Search is unrestricted. All roles see all controls, requirements, interpretations, and peer benchmarks.
+0370: Write access is gated by role as above.
+0371: Component 9 — Hierarchy Enforcement
+0372: CORE PRINCIPLE — NO MANDATES
+0373: Controls can be recommended but not mandated.
+0374: The hierarchy is a recommendation cascade, not an authority cascade.
+0375: Nobody overrides anybody. The platform's power is intelligence and guidance, not enforcement.
+0376: The peer adoption signal and trending intelligence do the persuasion work.
+0377: Recommendation strength levels
+0378: Level
+0379: Set by
+0380: Meaning
+0381: Strongly Recommended
+0382: Secretariat Admin
+0383: Platform-wide default for this tier. High regulatory density.
+0384: Recommended
+0385: Division Admin
+0386: Elevated within division. Cannot lower Secretariat recommendation.
+0387: Suggested
+0388: Peer intelligence engine
+0389: Based on adoption rate among peers at same risk tier.
+0390: Available
+0391: Catalog
+0392: Exists, not specifically pushed. Application Owner may select.
+0393: Cascade rules
+0394: Secretariat sets recommendation strength platform-wide.
+0395: Division Admin can only elevate — never lower — recommendation strength within their division.
+0396: Application Owner selects from whatever is available. No selection can be blocked.
+0397: Most specific interpretation always governs compliance measurement.
+0398: Alignment score: controls elevated by Division Admin carry a division-level boost for applications in that division.
+0399: Component 10 — Governance Dashboard
+0400: Application view — 5 panels
+0401: Panel
+0402: Contents
+0403: 1 — Posture header
+0404: Tier badge, alignment score (large), score delta vs last period, peer median, one-line commentary lead. Above the fold. Ten-second summary.
+0405: 2 — Alignment breakdown
+0406: Three weight dimensions visualised (peer adoption 50%, regulatory density 30%, trend velocity 20%). Expandable to full ranked commentary — adoption gap, regulatory exposure gap, trend gap. Each with specific controls and estimated score impact.
+0407: 3 — Control compliance grid
+0408: Two switchable modes: Domain mode (grouped by governance domain — day-to-day management) and Requirement mode (grouped by regulatory requirement — audit and reporting). Each control shows: status, metric value, delta, peer percentile, manual entry state, next review date. Click-through to control detail.
+0409: 4 — Trend and benchmark
+0410: Two sub-panels side by side. Left: trending controls in this tier this quarter (adoption velocity, direction). Right: metric-by-metric benchmark (application value vs peer median and IQR, spark chart, application position marked).
+0411: 5 — Governance setup
+0412: Unified faceted search interface. Peer-ranked recommendations. Active in setup mode. Hidden in monitoring mode.
+0413: Division view
+0414: Grid of application posture headers. Each card: application name, tier badge, alignment score, score delta, top compliance gap. Sortable by alignment score, tier, delta, name. Click-through to full application view.
+0415: Secretariat view
+0416: Cross-division grid (same as division view across all divisions) plus two additional panels: Tier distribution chart (Foundation / Common / High counts over time) and Systemic gap analysis (controls consistently absent across High-tier applications platform-wide).
+0417: Modes
+0418: Monitoring mode — default. Live compliance, alignment score, benchmarks, trends. Panel 5 hidden.
+0419: Setup mode — activated by user. Panel 5 search and recommendations visible. Used when configuring governance view for new or updated application.
+0420: Component 11 — API and Integration Contracts
+0421: 11a — REST API (OpenAPI 3.1)
+0422: Base URL: https://{governance-api-host}/api/v1 — clean abstract URL, never hardcoded.
+0423: Endpoint group
+0424: Purpose
+0425: search
+0426: Unified faceted search + autocomplete + health
+0427: registration
+0428: Application onboarding and profile management
+0429: tier
+0430: Risk tier score and history
+0431: catalog
+0432: Controls, requirements, interpretations
+0433: compliance
+0434: Compliance evidence and control values
+0435: peer-intelligence
+0436: Benchmarks, recommendations, trends
+0437: telemetry
+0438: OTEL status and health
+0439: curation
+0440: Admin curation queue
+0441: manual-controls
+0442: Manual value entry and history
+0443: Auth: Azure Entra ID OAuth2 client credentials. Three scopes: governance.read, governance.write, governance.admin.
+0444: Spec files already generated: governance_openapi.yaml, governance_otel_contract.json, governance_mcp_tools.json
+0445: 11b — OTEL Metric Contract
+0446: Standard OpenTelemetry. No proprietary SDK required from connected applications.
+0447: Required resource attributes on every span: service.name (=application_id), service.version, deployment.environment, un.governance.application_id, un.governance.division
+0448: Metric group
+0449: Required for
+0450: core (8 metrics)
+0451: All applications
+0452: rag (7 metrics)
+0453: ai_system_type includes RAG
+0454: fairness (2 metrics)
+0455: High-impact decision domains
+0456: security (3 metrics)
+0457: GEN, RAG, AUTO system types
+0458: privacy (2 metrics)
+0459: Applications processing personal data
+0460: incident (2 metrics)
+0461: Common and High tier
+0462: risk (2 metrics)
+0463: Common and High tier
+0464: appeals (2 metrics)
+0465: Binding or high-stakes decision types
+0466: 11c — MCP Server (11 tools)
+0467: Tool group
+0468: Tools
+0469: Catalog (5)
+0470: search_catalog, search_controls, get_control_detail, search_requirements, get_requirement_interpretations
+0471: Peer intelligence (6)
+0472: get_application_tier, get_peer_recommendations, get_peer_benchmark, get_tier_trends, get_compliance_summary, get_telemetry_status
+0473: Component 12 — Security and Privacy
+0474: Area
+0475: Design
+0476: Authentication
+0477: Azure Entra ID throughout. No custom auth. Three OAuth2 scopes: governance.read, governance.write, governance.admin.
+0478: Service-to-service
+0479: Managed identities — no stored credentials for governance telemetry layer pulling from source adapters.
+0480: Peer data privacy
+0481: Aggregated server-side only. No individual application data ever returned in peer comparisons. Minimum cohort N=3 before any peer figure shown.
+0482: Consent scope
+0483: Declared at registration: none | tier_aggregate | domain_aggregate | full_benchmark
+0484: Catalog sensitivity
+0485: Regulatory content is public. Sensitive: application profiles, metric readings, alignment scores, tier scores, interpretation trees. Scoped strictly to owner.
+0486: Evidence storage
+0487: Azure Blob Storage. Scoped to owning application and division. Secretariat Admin read access for audit.
+0488: Audit trail
+0489: Every write operation logged. Tier change events immutable. Interpretation versions never deleted. Curation decisions logged with reviewer identity.
+0490: Retention
+0491: Minimum 7 years for compliance evidence. Configurable per jurisdiction.
+0492: Fairness metrics
+0493: Demographic proxy categories only — never direct PII. DPO consultation required before implementing. Consent per jurisdiction.
+0494: Data residency
+0495: All data in Azure. Region configured per environment. UN enterprise: per declared jurisdiction.
+0496: Component 13 — Deployment Architecture
+0497: STRATEGY: ENTERPRISE FROM DAY ONE
+0498: One environment. Enterprise-grade from day one on personal Azure account.
+0499: No local-to-enterprise migration. No separate local stack.
+0500: When UN infrastructure becomes available: change environment variables only. No code changes.
+0501: Estimated cost on personal Azure account: $200–350/month.
+0502: Azure resource topology — one resource group
+0503: Service
+0504: Azure resource
+0505: Governance API
+0506: Azure Container Apps
+0507: Governance Dashboard
+0508: Azure Static Web Apps
+0509: Product 3 RAG backend
+0510: Azure Container Apps
+0511: Product 3 frontend
+0512: Azure Static Web Apps
+0513: PostgreSQL + pgvector + TimescaleDB
+0514: Azure Database for PostgreSQL Flexible Server (Burstable B2s)
+0515: GraphDB
+0516: Azure VM (B2s) running GraphDB Free
+0517: Azure AI Search
+0518: Azure AI Search Basic
+0519: Azure OpenAI
+0520: Azure OpenAI Service
+0521: OTEL Collector
+0522: Azure Container Apps
+0523: Governance Event Collector
+0524: Azure Container Apps
+0525: Redis
+0526: Azure Cache for Redis Basic
+0527: Queue
+0528: Azure Service Bus Basic
+0529: Blob storage
+0530: Azure Storage Account
+0531: Key vault
+0532: Azure Key Vault
+0533: Auth
+0534: Azure Entra ID
+0535: Monitoring
+0536: Azure Monitor + Log Analytics
+0537: Configuration management
+0538: All environment variables stored in Azure Key Vault.
+0539: Container Apps reference Key Vault secrets directly. No secrets in code or Docker images.
+0540: Adapter selection: SEARCH_BACKEND | LLM_BACKEND | QUEUE_BACKEND | GRAPH_BACKEND
+0541: Scaling
+0542: MVP: minimum replicas set to 1 for all services. Scale-to-zero enabled for non-critical services.
+0543: Pull model means no always-on computation — governance calculations only run on dashboard load.
+0544: GraphDB VM: fixed size B2s. No auto-scaling at this stage.
+0545: Implementation Roadmap
+0546: 7 phases. 19 weeks. Architecture locked — build only.
+0547: Phase 1 — Foundation (Weeks 1–2)
+0548: Azure infrastructure setup. All services provisioned, connected, secured.
+0549: Resource group, Key Vault, Entra ID, managed identities
+0550: PostgreSQL + pgvector + TimescaleDB — schema migrations
+0551: GraphDB VM — ontology loaded
+0552: Azure AI Search — index schema created
+0553: Azure Container Apps environment
+0554: Azure OpenAI deployment
+0555: Redis, Service Bus
+0556: GitHub Actions CI/CD pipeline
+0557: DELIVERABLE
+0558: Empty but fully connected infrastructure. Every service reachable. Auth working. CI/CD deploying.
+0559: Phase 2 — Data Layer (Weeks 3–4)
+0560: Schema, migrations, seed data, all adapters.
+0561: PostgreSQL schema — all tables per data model
+0562: GraphDB ontology — all node types and relationship types
+0563: Azure AI Search index — governance catalog schema with boost fields
+0564: Adapter ABCs — all layers (search, LLM, graph, queue, telemetry)
+0565: Concrete adapter implementations — all Azure services
+0566: Seed catalog — 59 controls, 140 requirements, 9 regulatory sources indexed and searchable
+0567: DELIVERABLE
+0568: Queryable catalog. Unified search returning faceted results. All adapters tested.
+0569: Phase 3 — Product 1: Regulatory Intelligence (Weeks 5–7)
+0570: Catalog API, ingestion flow, interpretation versioning, MCP server, automated feed.
+0571: FastAPI — catalog endpoints (controls, requirements, interpretations, search)
+0572: Unified search endpoint — faceted, hybrid, semantic, autocomplete
+0573: Ingestion flow — search-first, three paths (interpretation, new requirement, new control)
+0574: Interpretation versioning — three layers, full tree, divergence signals
+0575: Curation queue — deposit, review, approve workflow
+0576: Regulatory feed pipeline — Federal Register + Congress.gov adapters
+0577: MCP server — all 11 tools registered and tested
+0578: DELIVERABLE
+0579: Fully queryable regulatory intelligence layer. MCP server live. Automated feed running. Curation queue operational.
+0580: Phase 4 — Product 2: Governance Monitoring (Weeks 8–11)
+0581: Registration, telemetry, tier engine, compliance, alignment score, peer intelligence.
+0582: Application registration endpoint — triggers immediate tier calculation
+0583: Risk tier engine — NIST scoring, domain floor rule, immediate transitions, audit events
+0584: Governance telemetry layer — OTEL collector, all source adapters
+0585: Governance Event Collector — override, appeal, bias test, risk events
+0586: KPI Calculator — all 40 metrics, pull model, confidence thresholds
+0587: Compliance evidence engine — system calculated, hybrid, manual modes
+0588: Alignment score engine — weighted formula, three-dimension commentary
+0589: Peer intelligence engine — benchmark, recommendations, trends, systemic gap
+0590: Manual control value entry — history, delta, peer comparison
+0591: All monitoring endpoints — metric history, tier history, telemetry status
+0592: DELIVERABLE
+0593: Fully operational governance monitoring. Live tier scores. Live alignment scores. Peer benchmarks. Full metric history.
+0594: Phase 5 — Dashboard (Weeks 12–14)
+0595: React frontend — all three role views, all five panels.
+0596: Application view — all 5 panels (posture header, alignment breakdown, control grid, trend/benchmark, setup)
+0597: Control compliance grid — domain mode and requirement mode switchable
+0598: Control detail drill-through — description, requirements, interpretation tree, metric history charts
+0599: Division view — application grid, sortable, drill-through
+0600: Secretariat view — cross-division grid, tier distribution chart, systemic gap analysis
+0601: Setup mode and monitoring mode toggle
+0602: Peer benchmark visualisations — spark charts, IQR, percentile position
+0603: Trend visualisations — adoption velocity, quarter-over-quarter delta
+0604: DELIVERABLE
+0605: Fully functional governance dashboard. All three role views operational. All five panels live.
+0606: Phase 6 — Product 3: RAG Application (Weeks 15–17)
+0607: Governance intelligence assistant — first connected application. Clean enterprise build.
+0608: FastAPI backend — RAG pipeline against Product 1 catalog via Azure AI Search
+0609: LangChain orchestration + LangSmith tracing
+0610: MCP client — calls governance catalog tools for regulatory queries
+0611: OTEL emission — all mandatory metrics per contract (core + RAG groups)
+0612: Governance event emission — override, feedback events
+0613: React frontend — governance assistant UI, Azure SWA
+0614: Registration with governance platform — live tier score, live alignment score
+0615: End-to-end demo scenario — query about EU AI Act, see governance metrics update
+0616: DELIVERABLE
+0617: Live connected application governed by the platform. Full demo operational. Governance assistant answering questions about the catalog that governs it.
+0618: Phase 7 — Hardening (Weeks 18–19)
+0619: Production readiness before external applications connect.
+0620: End-to-end integration testing across all three products
+0621: Security review — OWASP, pen test scope defined
+0622: Performance testing — dashboard load times under realistic catalog size
+0623: Cost optimisation — scale-to-zero tuning, budget monitoring
+0624: Developer integration guide finalised — build-to-spec blueprint
+0625: Session handoff document updated with build decisions
+0626: DELIVERABLE
+0627: Platform ready for first external connected application beyond Product 3. Developer documentation complete.
+0628: Critical Path
+0629: Phase 2 ? Phase 3 ? Phase 4. Dashboard (Phase 5) and Product 3 (Phase 6) can start in parallel once Phase 3 API is stable at end of Week 7.
+0630: Existing Assets — Do Not Rebuild
+0631: Asset
+0632: Location
+0633: Status
+0634: governance_openapi.yaml
+0635: Session outputs
+0636: OpenAPI 3.1 spec — 19 endpoints, 48 schemas
+0637: governance_otel_contract.json
+0638: Session outputs
+0639: JSON Schema — 28 metrics across 8 groups
+0640: governance_mcp_tools.json
+0641: Session outputs
+0642: 11 MCP tools defined with full input/output schemas
+0643: UN_AI_Governance_Dataset_v2.xlsx
+0644: Session outputs
+0645: 59 controls, 140 requirements pre-mapped, 40 metric definitions, interpretation versioning schema
+0646: risk_tier_engine.py
+0647: regulatory_pipeline/pipeline/
+0648: NIST risk tier scoring engine — confirmed working
+0649: build_governance_dataset_v2.py
+0650: Home directory
+0651: Dataset builder script
+0652: regulatory_pipeline/
+0653: Home directory
+0654: Federal Register + Congress.gov adapters, obligation extractor, control mapper, curation queue
+0655: adapters/search/base.py
+0656: regulatory_pipeline/
+0657: Search adapter ABC
+0658: adapters/search/azure_ai_search.py
+0659: regulatory_pipeline/
+0660: Azure AI Search adapter
+0661: adapters/search/elasticsearch.py
+0662: regulatory_pipeline/
+0663: Elasticsearch adapter (local dev)
+0664: pipeline/search_service.py
+0665: regulatory_pipeline/
+0666: Search service layer
+0667: Context for New Session
+0668: HOW TO RESUME
+0669: Share this document at the start of the new session.
+0670: Say: 'I am Tristan Gitman, Head of AI Governance at UN Secretariat OICT.'
+0671: 'Continue building the UN AI Governance Platform.'
+0672: 'Architecture is fully locked across 13 components — do not redesign.'
+0673: 'We are starting Phase [N] of the implementation roadmap.'
+0674: 'The existing assets listed in this document are already built — do not rebuild them.'
+0675: Key decisions to remember
+0676: No mandates — controls are recommended only. Hierarchy is a recommendation cascade.
+0677: Alignment score uses peer adoption 50% / regulatory density 30% / trend velocity 20%.
+0678: All applications RAG against the governance catalog exclusively — single source of regulatory truth.
+0679: System-calculated metrics are fixed at build time. Only manual metrics can be added (Secretariat Admin enterprise-wide, Division Admin within division).
+0680: Product 3 is a clean enterprise build — not a migration from governance-demo-agentic.
+0681: Enterprise from day one on personal Azure account — migration to UN infrastructure = config change only.
+0682: Tier transitions are immediate — no approval required. Audit event emitted, Secretariat Admin notified informational only.
+0683: Domain floor rule: asylum, criminal justice, medical diagnosis, biometric ID floor at tier score 65 regardless of NIST calculation.
+0684: Peer group is scoped by risk tier. Minimum N=3 for peer figures. Individual application data never exposed.
+0685: Search-first before any catalog addition. Duplication structurally prevented.
+0686: GitHub and Azure references
+0687: Item
+0688: Value
+0689: GitHub
+0690: truos-official
+0691: Azure account
+0692: info@truos.io
+0693: Email
+0694: tristan.gitman@un.org
+0695: Existing frontend
+0696: https://ai.truos.io
+0697: Existing backend
+0698: https://governance-backend.greenbay-a269b9fb.eastus.azurecontainerapps.io

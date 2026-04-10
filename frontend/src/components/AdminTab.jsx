@@ -1,26 +1,50 @@
 import React, { useEffect, useState, Suspense } from 'react';
+import PropTypes from 'prop-types';
 import AlignmentWeightsPanel from './AlignmentWeightsPanel.jsx';
-import { api } from '../api/client.js';
+import ApplicationsTab from './ApplicationsTab.jsx';
+import { useApp, ROLES } from '../context/AppContext.jsx';
 
 const DeveloperIntegrationGuide = React.lazy(() => import('./DeveloperIntegrationGuide.jsx'));
 
 const SUBTABS = [
-  { id: 'weights',    label: 'Alignment Weights' },
-  { id: 'peers',      label: 'Peer Aggregates' },
-  { id: 'curation',   label: 'Curation Queue' },
-  { id: 'apps',       label: 'Connected Apps' },
-  { id: 'mcp',        label: 'MCP Access' },
-  { id: 'docs',       label: 'Technical Docs' },
+  { id: 'applications', label: 'Applications', minRole: ROLES.DIVISION_ADMIN },
+  { id: 'weights', label: 'Risk Category Settings', minRole: ROLES.SECRETARIAT_ADMIN },
+  { id: 'docs', label: 'Technical Docs', minRole: ROLES.DIVISION_ADMIN },
 ];
 
-export default function AdminTab() {
-  const [sub, setSub] = useState('weights');
+const ROLE_RANK = {
+  [ROLES.APPLICATION_OWNER]: 1,
+  [ROLES.EXPERT_CONTRIBUTOR]: 1,
+  [ROLES.REVIEWER]: 1,
+  [ROLES.DIVISION_ADMIN]: 2,
+  [ROLES.SECRETARIAT_ADMIN]: 3,
+};
+
+function canAccessSubtab(userRole, minRole) {
+  const userRank = ROLE_RANK[userRole] || 0;
+  const requiredRank = ROLE_RANK[minRole] || 0;
+  return userRank >= requiredRank;
+}
+
+export default function AdminTab({ onNavigate }) {
+  const { currentUser } = useApp();
+  const [sub, setSub] = useState('applications');
+  const allowedSubtabs = SUBTABS.filter((tab) => canAccessSubtab(currentUser.role, tab.minRole));
+
+  useEffect(() => {
+    if (!allowedSubtabs.some((tab) => tab.id === sub)) {
+      setSub(allowedSubtabs[0]?.id || null);
+    }
+  }, [allowedSubtabs, sub]);
 
   return (
     <div>
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+          Role: <strong>{currentUser.role.replace(/_/g, ' ')}</strong>
+        </div>
         <div className="subtab-strip">
-          {SUBTABS.map(t => (
+          {allowedSubtabs.map(t => (
             <button key={t.id} className={`subtab ${sub === t.id ? 'active' : ''}`}
               onClick={() => setSub(t.id)}>
               {t.label}
@@ -28,11 +52,8 @@ export default function AdminTab() {
           ))}
         </div>
         <div style={{ padding: '1.5rem' }}>
+          {sub === 'applications' && <ApplicationsTab onNavigate={onNavigate} />}
           {sub === 'weights'  && <AlignmentWeightsPanel />}
-          {sub === 'peers'    && <PeerAggregatesPanel />}
-          {sub === 'curation' && <CurationQueuePanel />}
-          {sub === 'apps'     && <ConnectedAppsPanel />}
-          {sub === 'mcp'      && <MCPAccessPanel />}
           {sub === 'docs'     && <TechDocsPanel />}
         </div>
       </div>
@@ -40,217 +61,24 @@ export default function AdminTab() {
   );
 }
 
-function PeerAggregatesPanel() {
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
+AdminTab.propTypes = {
+  onNavigate: PropTypes.func,
+};
 
-  const refresh = async () => {
-    setLoading(true);
-    try {
-      const payload = await api.refreshPeerAggregates();
-      setResult(payload);
-    } catch (e) { setResult({ error: e.message }); }
-    finally { setLoading(false); }
-  };
+AdminTab.defaultProps = {
+  onNavigate: () => {},
+};
 
+function MCPAccessSection() {
   return (
-    <div>
-      <h3 className="card-title" style={{ border: 'none', padding: 0, marginBottom: '0.75rem' }}>Peer Aggregates</h3>
-      <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-        Refreshes the peer benchmark table used by the alignment engine and benchmark panels.
-        Run after significant new telemetry has been ingested.
-      </p>
-      <button className="btn btn-unblue" onClick={refresh} disabled={loading}>
-        {loading ? 'Refreshing…' : 'Refresh Peer Aggregates'}
-      </button>
-      {result && !result.error && (
-        <div className="alert alert-success" style={{ marginTop: '1rem' }}>
-          ✓ Refreshed — {result.tiers_processed} tiers, {result.aggregates_written} aggregates written
-        </div>
-      )}
-      {result?.error && (
-        <div className="alert alert-danger" style={{ marginTop: '1rem' }}>{result.error}</div>
-      )}
-    </div>
-  );
-}
-
-function fmtDateTime(value) {
-  if (!value) {
-    return 'N/A';
-  }
-  return new Date(value).toLocaleString();
-}
-
-function CurationQueuePanel() {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const loadItems = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const payload = await api.getCurationQueue();
-      setItems(payload || []);
-    } catch (e) {
-      setError(e.message || 'Failed to load curation queue');
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadItems();
-  }, []);
-
-  return (
-    <div>
-      <h3 className="card-title" style={{ border: 'none', padding: 0, marginBottom: '0.75rem' }}>Curation Queue</h3>
-      <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-        Governance curation items awaiting review. Endpoint: GET /curation/queue.
-      </p>
-
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-        <span className="badge badge-grey">Total Items: {items.length}</span>
-        <span className="badge badge-yellow">Pending: {items.filter((i) => (i.status || '').toUpperCase() === 'PENDING').length}</span>
-        <button className="btn btn-outline btn-sm" onClick={loadItems} disabled={loading}>
-          {loading ? 'Refreshing...' : 'Refresh Queue'}
-        </button>
+    <div className="card card-sm" style={{ marginTop: '1rem', marginBottom: 0 }}>
+      <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.4rem' }}>
+        MCP Access
       </div>
-
-      {error && <div className="alert alert-danger">{error}</div>}
-
-      {!error && (
-        <table className="table" style={{ marginBottom: 0 }}>
-          <thead>
-            <tr>
-              <th>Created</th>
-              <th>Control ID</th>
-              <th>Type</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 && (
-              <tr>
-                <td colSpan={4} style={{ color: 'var(--text-tertiary)' }}>No curation items found.</td>
-              </tr>
-            )}
-            {items.map((item) => (
-              <tr key={item.id}>
-                <td>{fmtDateTime(item.created_at)}</td>
-                <td>{item.control_id || 'N/A'}</td>
-                <td>{item.item_type || 'N/A'}</td>
-                <td>
-                  <span className={`badge ${(item.status || '').toUpperCase() === 'PENDING' ? 'badge-yellow' : 'badge-green'}`}>
-                    {item.status || 'UNKNOWN'}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-}
-
-function ConnectedAppsPanel() {
-  const [apps, setApps] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const loadApps = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const payload = await api.listApplications();
-      setApps(payload || []);
-    } catch (e) {
-      setError(e.message || 'Failed to load applications');
-      setApps([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadApps();
-  }, []);
-
-  const activeCount = apps.filter((app) => app.status === 'active').length;
-  const disconnectedCount = apps.filter((app) => app.status === 'disconnected').length;
-
-  return (
-    <div>
-      <h3 className="card-title" style={{ border: 'none', padding: 0, marginBottom: '0.75rem' }}>Connected Applications</h3>
-      <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-        Admin inventory of registered applications. Endpoint: GET /applications.
-      </p>
-
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-        <span className="badge badge-grey">Total: {apps.length}</span>
-        <span className="badge badge-green">Active: {activeCount}</span>
-        <span className="badge badge-grey">Disconnected: {disconnectedCount}</span>
-        <button className="btn btn-outline btn-sm" onClick={loadApps} disabled={loading}>
-          {loading ? 'Refreshing...' : 'Refresh Apps'}
-        </button>
-      </div>
-
-      {error && <div className="alert alert-danger">{error}</div>}
-
-      {!error && (
-        <table className="table" style={{ marginBottom: 0 }}>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Tier</th>
-              <th>Status</th>
-              <th>Owner</th>
-              <th>Registered</th>
-            </tr>
-          </thead>
-          <tbody>
-            {apps.length === 0 && (
-              <tr>
-                <td colSpan={5} style={{ color: 'var(--text-tertiary)' }}>No applications found.</td>
-              </tr>
-            )}
-            {apps.map((app) => (
-              <tr key={app.id}>
-                <td>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontWeight: 700 }}>{app.name}</span>
-                    <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>{app.id}</span>
-                  </div>
-                </td>
-                <td>{app.current_tier || 'N/A'}</td>
-                <td>
-                  <span className={`badge ${app.status === 'active' ? 'badge-green' : 'badge-grey'}`}>
-                    {app.status}
-                  </span>
-                </td>
-                <td>{app.owner_email || 'N/A'}</td>
-                <td>{fmtDateTime(app.registered_at)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-}
-
-function MCPAccessPanel() {
-  return (
-    <div>
-      <h3 className="card-title" style={{ border: 'none', padding: 0, marginBottom: '0.75rem' }}>MCP Access</h3>
       <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
         The governance platform exposes an MCP server with 11 tools for AI agents to query the regulatory catalog and peer intelligence data.
       </p>
-      <div className="card card-flat" style={{ background: 'var(--surface-2)', marginBottom: '1rem' }}>
+      <div className="card card-flat" style={{ background: 'var(--surface-2)', marginBottom: '0.75rem' }}>
         <div className="section-label">Server Configuration</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
           {[
@@ -334,6 +162,8 @@ function TechDocsPanel() {
           <span className="badge badge-unblue">39 features · 8 categories</span>
         </div>
       </div>
+      <MCPAccessSection />
     </div>
   );
 }
+

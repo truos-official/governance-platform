@@ -2,7 +2,7 @@
 
 ## Phase 5 — Frontend (IN PROGRESS)
 Full platform UI: Governance tab (9-step pipeline), Applications tab,
-Risks & Controls tab, Admin tab with Technical Documentation shell.
+Dashboards tab (renamed from Risks & Controls), Admin tab with Technical Documentation shell.
 
 ## Phase 6 — Demo App Integration Track
 Runs after Phase 5 is complete and deployed.
@@ -40,3 +40,4 @@ Security, auth scope enforcement, observability, performance, DR patterns.
 
 ## Phase 8 — Release Readiness
 Final QA, acceptance tests, deployment runbook, production cutover.
+

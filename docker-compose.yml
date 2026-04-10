@@ -1,4 +1,4 @@
-# Local dev stack — AI Governance Platform
+# Local dev stack - AI Governance Platform
 # Production target: Azure Container Apps environment (aigov-cae, eastus)
 #
 # Secrets: use .env file locally (never commit). In ACA, use Key Vault references.
@@ -7,7 +7,7 @@
 services:
 
   # --------------------------------------------------------------------------
-  # FastAPI backend — Python 3.11
+  # FastAPI backend - Python 3.11
   # Auth: Azure Entra ID Bearer token (governance.read / governance.admin scopes)
   # --------------------------------------------------------------------------
   backend:
@@ -22,20 +22,20 @@ services:
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
       AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
       AZURE_KEY_VAULT_URL: ${AZURE_KEY_VAULT_URL:-https://aigov-kv.vault.azure.net/}
-      # Database — aigov-db (PostgreSQL 16, East US 2)
+      # Database - aigov-db (PostgreSQL 16, East US 2)
       DATABASE_URL: ${BACKEND_DATABASE_URL:-postgresql+asyncpg://aigov:localdev@postgres:5432/aigov}
       REDIS_URL: ${REDIS_URL:-redis://:localdev@redis:6379/0}
-      # LLM — aigov-gpt41 (gpt-4.1) — do NOT use gpt-4o
+      # LLM - aigov-gpt41 (gpt-4.1) - do NOT use gpt-4o
       AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
       AZURE_OPENAI_DEPLOYMENT: aigov-gpt41
       AZURE_OPENAI_MINI_DEPLOYMENT: aigov-gpt41-mini
-      # Search — aigov-search (Central US, Basic)
+      # Search - aigov-search (Central US, Basic)
       AZURE_SEARCH_ENDPOINT: ${AZURE_SEARCH_ENDPOINT}
       AZURE_SEARCH_KEY: ${AZURE_SEARCH_KEY}
-      # Graph — aigov-graphdb-vm (172.210.64.73:7200)
+      # Graph - aigov-graphdb-vm (172.210.64.73:7200)
       GRAPHDB_ENDPOINT: ${GRAPHDB_ENDPOINT:-http://172.210.64.73:7200}
       GRAPHDB_REPOSITORY: governance
-      # Queue — aigov-bus (Service Bus Basic) [TO PROVISION]
+      # Queue - aigov-bus (Service Bus Basic) [TO PROVISION]
       SERVICE_BUS_CONNECTION_STRING: ${SERVICE_BUS_CONNECTION_STRING}
       # OTEL export
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -57,6 +57,32 @@ services:
       timeout: 5s
       retries: 3
 
+  # --------------------------------------------------------------------------
+  # ODS Demo Agent
+  # Emits live telemetry on every /query call for the connected application.
+  # --------------------------------------------------------------------------
+  ods-demo-agent:
+    build:
+      context: ./ods-demo-agent
+      dockerfile: Dockerfile
+    ports:
+      - "8010:8010"
+    environment:
+      GOVERNANCE_BACKEND_URL: http://backend:8000
+      GOVERNANCE_TELEMETRY_ENDPOINT: http://backend:8000/api/v1/telemetry/ingest
+      GOVERNANCE_APPLICATION_ID: ${GOVERNANCE_APPLICATION_ID:-}
+      GOVERNANCE_APPLICATION_NAME: ${GOVERNANCE_APPLICATION_NAME:-ODS Demo Agent}
+      GOVERNANCE_DIVISION: ${GOVERNANCE_DIVISION:-unassigned}
+      DEPLOYMENT_ENVIRONMENT: production
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-aigov-gpt41-mini}
+      MODEL_INPUT_COST_PER_1K: ${MODEL_INPUT_COST_PER_1K:-0.0008}
+      MODEL_OUTPUT_COST_PER_1K: ${MODEL_OUTPUT_COST_PER_1K:-0.0032}
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
   # --------------------------------------------------------------------------
   # PostgreSQL 16 with pgvector
   # --------------------------------------------------------------------------
@@ -107,7 +133,7 @@ services:
     volumes:
       - ./otel-collector/otel-config.yaml:/etc/otel/config.yaml:ro
     ports:
-      - "4317:4317"   # OTLP gRPC — connected apps send metrics here
+      - "4317:4317"   # OTLP gRPC - connected apps send metrics here
       - "4318:4318"   # OTLP HTTP
       - "8888:8888"   # Collector Prometheus metrics (self-monitoring)
       - "13133:13133" # Health check
@@ -147,5 +173,3 @@ services:
 volumes:
   postgres_data:
   redis_data:
-
-

@@ -1,4 +1,4 @@
-# OpenTelemetry Collector configuration — local dev
+# OpenTelemetry Collector configuration - local dev
 # Production: deployed as sidecar in Azure Container Apps environment (aigov-cae)
 #
 # KEY RULE: only forward metrics where deployment.environment == "production"
@@ -18,7 +18,7 @@ processors:
     timeout: 10s
     send_batch_size: 1024
 
-  # Drop all non-production metrics — governance contract (Section 10)
+  # Drop all non-production metrics - governance contract (Section 10)
   filter/production_only:
     error_mode: ignore
     metrics:
@@ -41,7 +41,7 @@ processors:
 exporters:
   # Forward processed metrics to FastAPI ingest endpoint
   otlphttp/backend:
-    metrics_endpoint: http://backend:8000/telemetry/ingest
+    metrics_endpoint: http://backend:8000/api/v1/telemetry/ingest
     tls:
       insecure: true
 
